@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+import re
 import sys
 import zipfile
 from pathlib import Path
@@ -236,3 +237,212 @@ def test_ecuaciones_e_imagenes_sobreviven(tmp_path):
         xml = z.read("word/document.xml").decode("utf-8", "ignore")
     assert "oMath" in xml, "la ecuacion OMML se perdio en la ruta in-place"
     assert "w:drawing" in xml or "a:blip" in xml, "la imagen se perdio en la ruta in-place"
+
+
+class _Elem:
+    def __init__(self, type, text="", heading_level=None, is_cover_section=False, is_user_modified=False):
+        self.type = type
+        self.text = text
+        self.heading_level = heading_level
+        self.is_cover_section = is_cover_section
+        self.is_user_modified = is_user_modified
+
+
+class _ModelConElementos:
+    """Modelo con `elements` (a diferencia de `_Model`, que no los tiene)."""
+
+    def __init__(self, elements):
+        self.portada = {"body_start_paragraph_idx": 1}
+        self.elements = elements
+
+
+def _build_doc_mapeo(tmp_path: Path) -> Path:
+    doc = Document()
+    doc.add_paragraph("PORTADA")           # 0: portada
+    doc.add_heading("Resumen", level=1)    # 1: primer heading del cuerpo
+    doc.add_paragraph("PARRAFO ORIGINAL")  # 2
+    doc.add_paragraph("OTRO ORIGINAL")     # 3
+    path = tmp_path / "orig_mapeo.docx"
+    doc.save(path)
+    return path
+
+
+def test_mapeo_por_parrafo_real_no_por_ordinal(tmp_path):
+    """El modelo no está 1:1 con `doc.paragraphs` (el parser omite vacíos y
+    parte/une la portada). Antes se usaba el ordinal global del elemento como
+    índice de párrafo: un elemento SIN editar pisaba el texto de un párrafo del
+    cuerpo. Este es el bug del índice descolocado (texto perdido + índice de
+    Word ensuciado con cuerpo)."""
+    src = _build_doc_mapeo(tmp_path)
+    out = tmp_path / "out_mapeo.docx"
+    elements = [
+        _Elem("portada_block", "PORTADA", is_cover_section=True),
+        _Elem("heading", "Resumen", heading_level=1),
+        _Elem("paragraph", "TEXTO MODELO A"),   # sin editar: no debe pisar
+        _Elem("paragraph", "TEXTO MODELO B"),   # sin editar: no debe pisar
+    ]
+    apply_inplace(src, out, _ModelConElementos(elements), _Rules())
+    d = Document(str(out))
+    assert d.paragraphs[1].text.strip() == "Resumen"
+    assert d.paragraphs[2].text.strip() == "PARRAFO ORIGINAL", "se pisó texto no editado"
+    assert d.paragraphs[3].text.strip() == "OTRO ORIGINAL", "se pisó texto no editado"
+
+
+def test_texto_editado_aterriza_en_el_parrafo_correcto(tmp_path):
+    src = _build_doc_mapeo(tmp_path)
+    out = tmp_path / "out_mapeo_edit.docx"
+    elements = [
+        _Elem("portada_block", "PORTADA", is_cover_section=True),
+        _Elem("heading", "Resumen", heading_level=1),
+        _Elem("paragraph", "TEXTO EDITADO", is_user_modified=True),
+        _Elem("paragraph", "OTRO ORIGINAL"),
+    ]
+    apply_inplace(src, out, _ModelConElementos(elements), _Rules())
+    d = Document(str(out))
+    assert d.paragraphs[2].text.strip() == "TEXTO EDITADO"
+    assert d.paragraphs[3].text.strip() == "OTRO ORIGINAL"
+
+
+def _png_1x1() -> bytes:
+    import struct
+    import zlib
+
+    def chunk(tag: bytes, data: bytes) -> bytes:
+        body = tag + data
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
+
+    ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)  # 1x1 RGB
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr)
+            + chunk(b"IDAT", zlib.compress(b"\x00\x00\x00\x00")) + chunk(b"IEND", b""))
+
+
+def _build_doc_fig_y_tabla(tmp_path: Path) -> Path:
+    doc = Document()
+    for ln in ["UNIVERSIDAD NACIONAL", "Facultad de Ingeniería", "Título del Trabajo", "Autor Ejemplo", "Managua, 2026"]:
+        doc.add_paragraph(ln)
+    doc.add_heading("Introducción", level=1)
+    doc.add_paragraph("Cuerpo del documento con texto suficiente para el cuerpo. " * 2)
+    png = tmp_path / "px.png"
+    png.write_bytes(_png_1x1())
+    doc.add_picture(str(png))
+    doc.add_paragraph("Texto entre la figura y la tabla.")
+    tbl = doc.add_table(rows=2, cols=2)
+    tbl.rows[0].cells[0].text = "Dato"
+    path = tmp_path / "orig_figtbl.docx"
+    doc.save(path)
+    return path
+
+
+def test_figuras_y_tablas_del_cuerpo_reciben_leyenda(tmp_path):
+    """El export in-place no numeraba figuras ni tablas. Ahora les pone
+    'Figura N' / 'Tabla N' en el cuerpo, sin tocar la portada."""
+    src = _build_doc_fig_y_tabla(tmp_path)
+    out = tmp_path / "out_figtbl.docx"
+    apply_inplace(src, out, _Model(), _Rules())
+    texts = [(p.text or "").strip() for p in Document(str(out)).paragraphs]
+    assert any(t.startswith("Figura 1") for t in texts), texts
+    assert any(t.startswith("Tabla 1") for t in texts), texts
+
+
+def _build_doc_tabla_con_leyenda(tmp_path: Path) -> Path:
+    doc = Document()
+    for ln in ["UNIVERSIDAD NACIONAL", "Facultad de Ingeniería", "Título del Trabajo", "Autor Ejemplo", "Managua, 2026"]:
+        doc.add_paragraph(ln)
+    doc.add_heading("Introducción", level=1)
+    doc.add_paragraph("Cuerpo del documento con texto suficiente para el cuerpo. " * 2)
+    doc.add_paragraph("Tabla 1")  # leyenda ya existente, arriba de la tabla
+    doc.add_table(rows=2, cols=2)
+    path = tmp_path / "orig_tbl_cap.docx"
+    doc.save(path)
+    return path
+
+
+def test_leyenda_existente_no_se_duplica(tmp_path):
+    src = _build_doc_tabla_con_leyenda(tmp_path)
+    out = tmp_path / "out_tbl_cap.docx"
+    apply_inplace(src, out, _Model(), _Rules())
+    texts = [(p.text or "").strip() for p in Document(str(out)).paragraphs]
+    assert sum(1 for t in texts if t.startswith("Tabla")) == 1, texts
+
+
+def _build_doc_fig_renumerar(tmp_path: Path) -> Path:
+    doc = Document()
+    for ln in ["UNIVERSIDAD NACIONAL", "Facultad de Ingeniería", "Título del Trabajo", "Autor Ejemplo", "Managua, 2026"]:
+        doc.add_paragraph(ln)
+    doc.add_heading("Introducción", level=1)
+    doc.add_paragraph("Cuerpo del documento con texto suficiente para el cuerpo. " * 2)
+    png = tmp_path / "px.png"
+    png.write_bytes(_png_1x1())
+    doc.add_picture(str(png))  # figura sin leyenda
+    for _ in range(8):
+        doc.add_paragraph("Relleno.")
+    doc.add_paragraph("Figura 9")  # leyenda existente, número arbitrario
+    for _ in range(8):
+        doc.add_paragraph("Relleno.")
+    doc.add_paragraph("Figura 9")  # leyenda existente duplicada
+    path = tmp_path / "orig_fig_renum.docx"
+    doc.save(path)
+    return path
+
+
+def test_numeracion_figuras_correlativa_sin_duplicados(tmp_path):
+    """Las figuras se renumeran en orden de documento: la que no tenía leyenda
+    recibe su número y las leyendas viejas (con números repetidos) se corrigen."""
+    src = _build_doc_fig_renumerar(tmp_path)
+    out = tmp_path / "out_fig_renum.docx"
+    apply_inplace(src, out, _Model(), _Rules())
+    nums = [
+        re.search(r"\d+", (p.text or "")).group()
+        for p in Document(str(out)).paragraphs
+        if re.match(r"^Figura\s+\d+", (p.text or "").strip())
+    ]
+    assert nums == ["1", "2", "3"], nums
+
+
+def test_physical_paragraph_index_respeta_la_convencion():
+    """La correspondencia modelo<->párrafo físico salta vacíos y portada.
+    Es la misma que usan apply_inplace y la inserción de elementos."""
+    from generation.inplace_editor import physical_paragraph_index
+
+    class _P:
+        def __init__(self, t):
+            self.text = t
+
+    class _D:
+        def __init__(self, texts):
+            self.paragraphs = [_P(t) for t in texts]
+
+    paragraphs = _D(["portada 1", "portada 2", "", "cuerpo A", "", "cuerpo B"]).paragraphs
+    elements = [
+        _Elem("portada_block", "x", is_cover_section=True),
+        _Elem("paragraph", "cuerpo A"),
+        _Elem("paragraph", "cuerpo B"),
+    ]
+    m = _ModelConElementos(elements)
+    assert physical_paragraph_index(m, paragraphs, 1, 2) == 3
+    assert physical_paragraph_index(m, paragraphs, 2, 2) == 5
+    assert physical_paragraph_index(m, paragraphs, 0, 2) is None  # portada
+
+
+def test_export_inplace_descarta_referencia_basura(tmp_path):
+    """El export in-place elimina la entrada de bibliografia que en realidad es
+    una pagina web (titulo colado como autor) y conserva las legitimas."""
+    doc = Document()
+    for ln in ["UNIVERSIDAD NACIONAL", "Facultad de Ingeniería", "Título del Trabajo", "Autor Ejemplo", "Managua, 2026"]:
+        doc.add_paragraph(ln)
+    doc.add_heading("Introducción", level=1)
+    doc.add_paragraph("Cuerpo del documento con texto suficiente para el cuerpo. " * 2)
+    doc.add_heading("Bibliografía", level=1)
+    doc.add_paragraph("Gutiérrez Pulido, H. (2012). Calidad total y productividad (2.ª ed.). McGraw-Hill.")
+    doc.add_paragraph(
+        "Business improvement strategy or useful tool? Analysis of the application of the 5S "
+        "concept in Japan, the UK and the US - Scientific Figure on ResearchGate. Available from: "
+        "https://www.researchgate.net/figure/x [accessed 26 Jun 2025]"
+    )
+    src = tmp_path / "orig_refjunk.docx"
+    doc.save(src)
+    out = tmp_path / "out_refjunk.docx"
+    apply_inplace(src, out, _Model(), _Rules())
+    texts = [(p.text or "").strip() for p in Document(str(out)).paragraphs]
+    assert not any("ResearchGate" in t for t in texts), texts
+    assert any(t.startswith("Gutiérrez Pulido") for t in texts), texts

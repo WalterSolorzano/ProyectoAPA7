@@ -888,17 +888,13 @@ async def insert_element(req: InsertElementRequest) -> DocumentModel:
     d = Document(str(original))
     paragraphs = d.paragraphs
 
-    # Índice del párrafo físico: misma convención que apply_inplace
-    # (solo paragraph/heading/bullet/numbered_list/portada_block avanzan).
-    phys = 0
-    for i, elem in enumerate(doc.elements):
-        if i == idx:
-            break
-        et = getattr(elem, "type", None)
-        ets = et.value if hasattr(et, "value") else str(et)
-        if ets in ("paragraph", "heading", "bullet", "numbered_list", "portada_block"):
-            phys += 1
-    if phys >= len(paragraphs):
+    # Índice del párrafo físico con la MISMA correspondencia que apply_inplace:
+    # párrafos NO vacíos del cuerpo (>= body_start), en orden, contra elementos
+    # de cuerpo (no portada), en orden. El ordinal global de elementos no sirve
+    # (el parser omite vacíos y parte/une la portada).
+    from generation.inplace_editor import locate_physical_paragraph
+    phys = locate_physical_paragraph(doc, d, idx)
+    if phys is None or phys >= len(paragraphs):
         raise HTTPException(status_code=500, detail="Posición de párrafo fuera de rango.")
 
     src = paragraphs[phys]
@@ -977,16 +973,11 @@ async def insert_image_element(req: InsertImageRequest) -> DocumentModel:
         d = Document(str(original))
         paragraphs = d.paragraphs
 
-        # Índice del párrafo físico: misma convención que apply_inplace.
-        phys = 0
-        for i, elem in enumerate(doc.elements):
-            if i == idx:
-                break
-            et = getattr(elem, "type", None)
-            ets = et.value if hasattr(et, "value") else str(et)
-            if ets in ("paragraph", "heading", "bullet", "numbered_list", "portada_block"):
-                phys += 1
-        if phys < len(paragraphs):
+        # Índice del párrafo físico con la MISMA correspondencia que apply_inplace
+        # (párrafos NO vacíos del cuerpo, en orden; el ordinal de elementos no sirve).
+        from generation.inplace_editor import locate_physical_paragraph
+        phys = locate_physical_paragraph(doc, d, idx)
+        if phys is not None and phys < len(paragraphs):
             src = paragraphs[phys]
             new_p = OxmlElement("w:p")
             src._p.addnext(new_p)

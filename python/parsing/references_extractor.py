@@ -254,6 +254,38 @@ def _normalize_title_key(title: str) -> str:
     return norm[:40]
 
 
+# Un autor real es corto y no es una URL ni una frase de recuperacion. Si el
+# "autor" extraido parece el TITULO de una pagina web (p.ej. "... Scientific
+# Figure on ResearchGate. Available from: http..."), la entrada NO es una
+# referencia bibliografica y se descarta.
+_JUNK_AUTHOR_MARKERS = re.compile(
+    r"(scientific figure|available from|accessed|https?://|www\.)",
+    re.IGNORECASE,
+)
+
+
+def is_junk_reference(raw: str, parsed: Optional[dict] = None) -> bool:
+    """¿La entrada NO es una referencia bibliografica real?
+
+    Caso raiz: una pagina de ResearchGate pegada en la bibliografia cuyo titulo
+    se colaba como autor ('Business improvement strategy... Scientific Figure on
+    ResearchGate. Available from: ...'). Un autor legitimo es corto y no es una
+    URL ni una frase de recuperacion."""
+    for a in (parsed or {}).get("authors") or []:
+        a = (a or "").strip()
+        if len(a) > 60:
+            return True
+        if _JUNK_AUTHOR_MARKERS.search(a):
+            return True
+    return False
+
+
+def reference_looks_like_junk(raw: str) -> bool:
+    """Igual que `is_junk_reference`, pero parseando el texto crudo. Lo usa el
+    export in-place, que solo tiene el parrafo (no el modelo parseado)."""
+    return is_junk_reference(raw, _parse_single_reference(_strip_numeric_prefix(raw)))
+
+
 def _semantic_dedup_key(parsed: dict, raw_clean: str) -> str:
     """Clave de dedup semantica: apellido + anio + titulo normalizado.
 
@@ -347,6 +379,9 @@ def extract_references(elements: List[ElementModel]) -> List[ReferenciaModel]:
         raw_clean = _strip_numeric_prefix(raw)  # para parseo/clave; raw se conserva
         parsed = _parse_single_reference(raw_clean)
         if not parsed:
+            continue
+        if is_junk_reference(raw_clean, parsed):
+            # Pagina web cuyo titulo se colaba como autor: no es una referencia.
             continue
         key = _semantic_dedup_key(parsed, raw_clean)
         if key in seen:

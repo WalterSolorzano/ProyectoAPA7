@@ -45,6 +45,7 @@ from generation.style_engine import (
     aplicar_tamano_pagina,
     update_docx_styles_xml,
 )
+from parsing.references_extractor import reference_looks_like_junk
 
 try:
     from wordapa7_logger import log_event
@@ -126,6 +127,215 @@ def _is_toc_line(text: str) -> bool:
     return bool(re.search(r"(?:\.{2,}|_{2,}|\t|\s{4,})\s*\d+\s*$", text))
 
 
+# Tipos de elemento del modelo que corresponden a un párrafo físico de
+# `doc.paragraphs`. Es la MISMA lista que usa `apply_inplace` para mapear.
+_PARAGRAPH_LIKE_TYPES = ("paragraph", "heading", "bullet", "numbered_list", "portada_block")
+
+_REGEX_TABLE_CAPTION = re.compile(r"^(?:Tabla|Table|Cuadro)\s+\d+\.?", re.IGNORECASE)
+_REGEX_FIGURE_CAPTION = re.compile(r"^(?:Figura|Figure|Fig\.)\s+\d+\.?", re.IGNORECASE)
+
+
+def _model_body_element_indices(doc_model: Any) -> list[int]:
+    """Índices (dentro de `doc_model.elements`) de los elementos que son un
+    párrafo del cuerpo: tipo párrafo y NO portada, en orden.
+
+    Es la única correspondencia estable con `doc.paragraphs`: el modelo omite
+    párrafos vacíos y parte/une bloques de portada, así que el ordinal global
+    de elementos NO es un índice de párrafo."""
+    out: list[int] = []
+    for i, elem in enumerate(getattr(doc_model, "elements", None) or []):
+        et = getattr(elem, "type", None)
+        ets = et.value if hasattr(et, "value") else str(et)
+        if ets in _PARAGRAPH_LIKE_TYPES and not getattr(elem, "is_cover_section", False):
+            out.append(i)
+    return out
+
+
+def physical_paragraph_index(
+    doc_model: Any, paragraphs: list, model_element_index: int, body_start: int
+) -> int | None:
+    """Índice físico en `doc.paragraphs` del elemento del modelo, con la MISMA
+    correspondencia que `apply_inplace`: párrafos NO vacíos del cuerpo
+    (>= `body_start`), en orden, contra elementos de cuerpo (no portada), en
+    orden. Devuelve `None` si el elemento no es un párrafo de cuerpo o no se
+    puede ubicar."""
+    body = _model_body_element_indices(doc_model)
+    if model_element_index not in body:
+        return None
+    pos = body.index(model_element_index)
+    k = 0
+    for pi in range(body_start, len(paragraphs)):
+        if (paragraphs[pi].text or "").strip():
+            if k == pos:
+                return pi
+            k += 1
+    return None
+
+
+def locate_physical_paragraph(doc_model: Any, physical_doc: Any, model_element_index: int) -> int | None:
+    """Igual que `physical_paragraph_index`, pero calcula `body_start` desde el
+    modelo y el piso de portada por contenido. Punto único para que la inserción
+    de elementos (routers/sessions) use la misma convención que el export."""
+    paragraphs = physical_doc.paragraphs
+    body_start = max(_body_start(doc_model), 0)
+    body_start = max(body_start, _cover_floor_by_content(physical_doc))
+    return physical_paragraph_index(doc_model, paragraphs, model_element_index, body_start)
+
+
+def _caption_paragraph_text(el: Any) -> str:
+    W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    return "".join(t.text or "" for t in el.iter(f"{W}t")).strip()
+
+
+def _find_caption_near(block_el: Any, pattern: re.Pattern, window: int = 6) -> Any:
+    """Devuelve el párrafo de leyenda (Figura N / Tabla N) cercano al bloque,
+    o `None`. Un .docx hecho a mano la pone arriba o abajo, a veces con
+    párrafos vacíos (o el segundo dibujo de la misma figura) en medio, así que
+    se mira el propio bloque y hasta `window` hermanos por lado."""
+    W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    if block_el.tag == f"{W}p" and pattern.match(_caption_paragraph_text(block_el)):
+        return block_el
+    for direction in ("getprevious", "getnext"):
+        el = getattr(block_el, direction)()
+        steps = 0
+        while el is not None and steps < window:
+            if el.tag == f"{W}p" and pattern.match(_caption_paragraph_text(el)):
+                return el
+            el = getattr(el, direction)()
+            steps += 1
+    return None
+
+
+def _has_caption_near(block_el: Any, pattern: re.Pattern, window: int = 6) -> bool:
+    return _find_caption_near(block_el, pattern, window) is not None
+
+
+def _set_caption_number(caption_el: Any, new_num: int) -> None:
+    """Reescribe el número de una leyenda existente conservando sus runs
+    (formato). Cambia el primer bloque de dígitos que encuentre."""
+    W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    for r in caption_el.findall(f"{W}r"):
+        for t in r.findall(f"{W}t"):
+            if t.text and re.search(r"\d+", t.text):
+                t.text = re.sub(r"\d+", str(new_num), t.text, count=1)
+                return
+
+
+def _insert_caption_label(doc: Any, block_el: Any, text: str, rules: Any) -> None:
+    """Inserta un párrafo de etiqueta APA ("Figura N" / "Tabla N") justo antes
+    del bloque, en negrita y pegado a él (`keep_with_next`). No toca nada más."""
+    from docx.oxml import OxmlElement
+    from docx.text.paragraph import Paragraph
+
+    new_p = OxmlElement("w:p")
+    block_el.addprevious(new_p)
+    para = Paragraph(new_p, doc)
+    pf = para.paragraph_format
+    pf.space_before = Pt(6)
+    pf.space_after = Pt(2)
+    try:
+        pf.line_spacing = getattr(rules, "line_spacing", 2.0)
+    except Exception:
+        pass
+    pf.first_line_indent = Inches(0)
+    pf.keep_with_next = True
+    run = para.add_run(text)
+    run.bold = True
+    run.font.name = getattr(rules, "font_family", None)
+    size = getattr(rules, "font_size_pt", None)
+    if size:
+        try:
+            run.font.size = Pt(size)
+        except Exception:
+            pass
+    return new_p
+
+
+def _caption_units(doc: Any, body_start: int, pattern: re.Pattern, kind: str) -> list:
+    """Unidades numerables del cuerpo en orden de documento (`kind` = 'figure'
+    o 'table'). Cada unidad es `(elemento, ya_tiene_leyenda)`: si `True`, el
+    elemento es el párrafo de leyenda existente (se reescribe su número); si
+    `False`, es un bloque sin leyenda (se le inserta una). Una leyenda que ya
+    aparece cuenta una sola vez aunque cubra varios dibujos."""
+    W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    units = []
+    seen = set()
+
+    def _add(el: Any, existing: bool) -> None:
+        key = el.getroottree().getpath(el)
+        if key in seen:
+            return
+        seen.add(key)
+        units.append((el, existing))
+
+    pidx = 0
+    for child in list(doc.element.body):
+        tag = child.tag
+        if tag == f"{W}p":
+            in_body = pidx >= body_start
+            pidx += 1
+            if not in_body:
+                continue
+            if pattern.match(_caption_paragraph_text(child)):
+                _add(child, True)  # leyenda suelta (p. ej. sin dibujo cerca)
+                continue
+            if kind == "figure" and (
+                child.findall(f".//{W}drawing") or child.findall(f".//{W}pict")
+            ):
+                cap = _find_caption_near(child, pattern)
+                if cap is not None:
+                    _add(cap, True)
+                else:
+                    _add(child, False)
+        elif tag == f"{W}tbl":
+            if kind != "table" or pidx < body_start:
+                continue
+            cap = _find_caption_near(child, pattern)
+            if cap is not None:
+                _add(cap, True)
+            else:
+                _add(child, False)
+    return units
+
+
+def _ensure_body_captions(doc: Any, body_start: int, rules: Any) -> None:
+    """Numera en APA las figuras y tablas del CUERPO.
+
+    La portada (todo lo anterior a `body_start`) no se toca. Se recorre el
+    cuerpo en orden y cada figura/tabla recibe su número correlativo: si ya
+    tenía leyenda se reescribe el número (así se corrigen duplicados y saltos
+    del original), y si no la tenía se inserta 'Figura N' / 'Tabla N'. Las
+    unidades se calculan ANTES de insertar para que las leyendas nuevas no se
+    confundan con las del propio documento."""
+    fig_prefix = getattr(rules, "figure_label_prefix", "Figura")
+    tbl_prefix = getattr(rules, "table_label_prefix", "Tabla")
+    fig_units = _caption_units(doc, body_start, _REGEX_FIGURE_CAPTION, "figure")
+    tbl_units = _caption_units(doc, body_start, _REGEX_TABLE_CAPTION, "table")
+    for n, (el, existing) in enumerate(fig_units, start=1):
+        if existing:
+            _set_caption_number(el, n)
+        else:
+            _insert_caption_label(doc, el, f"{fig_prefix} {n}", rules)
+    for n, (el, existing) in enumerate(tbl_units, start=1):
+        if existing:
+            _set_caption_number(el, n)
+        else:
+            _insert_caption_label(doc, el, f"{tbl_prefix} {n}", rules)
+
+
+def _strip_accents(text: str) -> str:
+    """Quita acentos para comparar cabeceras ("Bibliografía" == "bibliografia").
+
+    El archivo traia literales no-ASCII corruptos; comparar sin acentos evita
+    depender de ellos y ademas reconoce el titulo acentuado real.
+    """
+    import unicodedata
+
+    return "".join(
+        c for c in unicodedata.normalize("NFKD", text or "") if not unicodedata.combining(c)
+    )
+
+
 def apply_inplace(
     original_path: Path,
     out_path: Path,
@@ -180,24 +390,36 @@ def apply_inplace(
     except Exception:
         pass
 
-    # Construir mapa de texto y heading level editado por el usuario en el editor
+    # Construir mapa de texto y heading level editado por el usuario en el editor.
+    # El modelo NO está 1:1 con doc.paragraphs: el parser omite párrafos vacíos
+    # y parte/une bloques de portada. Por eso el ordinal global de elementos NO
+    # sirve como índice de párrafo (desfasaba el texto ~20 posiciones y
+    # convertía cuerpo en títulos, ensuciando el índice de Word). La única
+    # correspondencia estable es: párrafos NO vacíos del cuerpo (i >= body_start),
+    # en orden, contra elementos de cuerpo (no portada), en orden.
     modified_text_map: dict[int, str] = {}
     heading_level_map: dict[int, int] = {}
     if hasattr(doc_model, "elements") and doc_model.elements:
-        elem_p_idx = 0
-        for elem in doc_model.elements:
+        body_elems = _model_body_element_indices(doc_model)
+        j = 0
+        for i in range(body_start, len(paragraphs)):
+            if not paragraphs[i].text.strip():
+                continue
+            if j >= len(body_elems):
+                break
+            elem = doc_model.elements[body_elems[j]]
             etype = getattr(elem, "type", None)
             etype_str = etype.value if hasattr(etype, "value") else str(etype)
-            # Solo elementos que corresponden a párrafos en doc.paragraphs
-            if etype_str in ("paragraph", "heading", "bullet", "numbered_list", "portada_block"):
-                if elem_p_idx < len(paragraphs):
-                    t = getattr(elem, "text", None)
-                    if t:
-                        modified_text_map[elem_p_idx] = t
-                    if etype_str == "heading":
-                        lvl = getattr(elem, "heading_level", 1) or 1
-                        heading_level_map[elem_p_idx] = lvl
-                elem_p_idx += 1
+            j += 1
+            # Solo el texto que el usuario editó se reescribe; el resto se deja
+            # intacto para no pisar contenido ni glifos de viñeta.
+            if getattr(elem, "is_user_modified", False):
+                t = getattr(elem, "text", None)
+                if t:
+                    modified_text_map[i] = t
+            if etype_str == "heading":
+                lvl = getattr(elem, "heading_level", 1) or 1
+                heading_level_map[i] = lvl
 
     changed = 0
     # Capa de defensa (no raiz): la causa del duplicado es la extraccion;
@@ -209,7 +431,7 @@ def apply_inplace(
     if "texto" in active or "bibliografia" in active:
         # Localizar inicio de bibliografÃ­a: Ãºltimo heading 'Referencias' o primer pÃ¡rrafo-ref
         for i in range(len(paragraphs) - 1, body_start, -1):
-            if paragraphs[i].text.strip().lower().rstrip(":") in ("referencias", "bibliografÃ­a", "bibliografia", "references"):
+            if _strip_accents(paragraphs[i].text.strip().lower().rstrip(":")) in ("referencias", "bibliografia", "references"):
                 ref_zone_start = i + 1
                 break
 
@@ -302,6 +524,13 @@ def apply_inplace(
         if _is_toc_line(text) or text.strip().lower() in ("indice", "Ã­ndice", "tabla de contenido", "tabla de contenidos"):
             continue
 
+        if "bibliografia" in active and i >= ref_zone_start and reference_looks_like_junk(text):
+            # Entrada que no es una referencia (pagina web cuyo titulo se colo
+            # como autor): se elimina del bloque de bibliografia.
+            para._element.getparent().remove(para._element)
+            removed_refs += 1
+            continue
+
         if "bibliografia" in active and i >= ref_zone_start and _is_ref_paragraph(text):
             # Dedup de bibliografia in-place: misma referencia con distinto
             # numeral de lista ('6.' y '7.') se colapsa eliminando el
@@ -316,6 +545,9 @@ def apply_inplace(
             pf.left_indent = Inches(0.5)
             pf.first_line_indent = Inches(-0.5)
             pf.line_spacing = line_sp
+            pf.space_before = Pt(0)
+            pf.space_after = Pt(0)
+            para.alignment = WD_ALIGN_PARAGRAPH.LEFT
             changed += 1
             continue
 
@@ -394,6 +626,9 @@ def apply_inplace(
                 el.set(qn("w:val"), "none")
                 borders.append(el)
             tblPr.append(borders)
+
+        # Leyendas APA para figuras/tablas del cuerpo que no la tengan.
+        _ensure_body_captions(doc, body_start, rules)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
 

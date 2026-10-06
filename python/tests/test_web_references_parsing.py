@@ -183,3 +183,26 @@ def test_parse_limpia_available_from_y_accessed_midstring():
     joined = " ".join([parsed.get("title", ""), parsed.get("source", "")])
     assert "Available" not in joined
     assert "[accessed" not in joined and "accessed" not in joined
+
+
+def test_descarta_pagina_web_cuyo_titulo_se_colo_como_autor():
+    """Una pagina de ResearchGate pegada en la bibliografia no es una
+    referencia: su titulo se colaba como autor y ensuciaba el listado."""
+    from parsing.references_extractor import reference_looks_like_junk
+
+    bogus = ("Business improvement strategy or useful tool? Analysis of the "
+             "application of the 5S concept in Japan, the UK and the US - "
+             "Scientific Figure on ResearchGate. Available from: "
+             "https://www.researchgate.net/figure/x [accessed 26 Jun 2025]")
+    assert reference_looks_like_junk(bogus) is True
+
+
+def test_no_descarta_referencias_legitimas():
+    from parsing.references_extractor import reference_looks_like_junk
+
+    ok = "Gutiérrez Pulido, H. (2012). Calidad total y productividad (2.ª ed.). McGraw-Hill."
+    assert reference_looks_like_junk(ok) is False
+    # Una web real con autor corto tampoco se descarta.
+    web = ("ResearchGate (2020). Available from: https://researchgate.net/figure/123 "
+           "[accessed 26 Jun 2025]")
+    assert reference_looks_like_junk(web) is False
