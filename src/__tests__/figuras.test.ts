@@ -169,6 +169,36 @@ describe('contextosDeFiguras — la POSICION es la identidad', () => {
   });
 });
 
+describe('contextosDeFiguras — la tabla viaja completa al lienzo', () => {
+  it('el estilo y los spans de la tabla llegan al contexto (no se pierden)', () => {
+    /* El Taller pinta el lienzo con `contextoActual.tabla`. Si el contexto arma
+       la tabla solo con headers/rows, `TablaRender` cae al preset por defecto y
+       el selector de estilo parece no hacer nada: el estado se guarda bien, la
+       vista derivada lo descarta. */
+    const doc: ElementModel[] = [
+      h1('1. Uno'),
+      el({
+        type: 'table',
+        text: 'Tabla 1',
+        table_info: {
+          element_id: 'elem_t1',
+          table_number: 1,
+          caption: '',
+          headers: ['A', 'B'],
+          rows: [['1', '2']],
+          style: 'zebra',
+          header_spans: [{ col: 2, row: 1 }],
+          row_spans: [[{ col: 1, row: 1 }, { col: 1, row: 1 }]],
+        } as never,
+      }),
+    ];
+    const tabla = contextosDeFiguras(doc)[0].tabla!;
+    expect(tabla.style).toBe('zebra');
+    expect(tabla.header_spans).toEqual([{ col: 2, row: 1 }]);
+    expect(tabla.row_spans).toEqual([[{ col: 1, row: 1 }, { col: 1, row: 1 }]]);
+  });
+});
+
 describe('el buscador (§8.1: busca tambien por seccion)', () => {
   const ctx = contextosDeFiguras(DOC);
 
