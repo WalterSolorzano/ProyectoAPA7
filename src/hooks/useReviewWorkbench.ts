@@ -43,7 +43,7 @@ import {
 import { useReviewActions } from './useReviewActions';
 import { reviewItems, PHASE_ORDER, phaseLabel, type AuditItem, type EngineId, type Severity } from '../lib/auditItems';
 import { rotuloDeSubtipo } from '../lib/rotulos';
-import { cumplimiento } from '../lib/informeRevision';
+import { contarParrafos, cumplimiento } from '../lib/informeRevision';
 
 /* La tabla de rótulos y la de reglas viven en `lib/rotulos`, y no acá. Este hook
    las consumía y las declaraba a la vez, que es lo que dejó al slice del store sin
@@ -533,6 +533,7 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
   const lastScanRef = useRef<Partial<Record<ScanEngineId, { ok: boolean; snap: unknown }>>>({});
 
   const elements = useMemo(() => doc?.elements || [], [doc]);
+  const parrafos = useMemo(() => contarParrafos(elements), [elements]);
 
   /* La lista la construye `reviewItems` de `lib/auditItems` — la MISMA función
      que cuenta el rail: lo que esta vista abre y lo que el rail promete tienen
@@ -898,7 +899,7 @@ export function useReviewWorkbench(): ReviewWorkbenchApi {
     isApplying,
     metrics: {
       total,
-      compliance: threeEnginesRan ? cumplimiento(total) : null,
+      compliance: threeEnginesRan ? cumplimiento(total, parrafos) : null,
     },
     viewMode,
     setViewMode,

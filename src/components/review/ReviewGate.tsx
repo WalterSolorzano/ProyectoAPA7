@@ -8,6 +8,7 @@ import type { AuditItem, ToolWindowId } from '../../lib/auditItems';
 import { phaseLabel } from '../../lib/auditItems';
 import type { ElementModel } from '../../types';
 import {
+  contarParrafos,
   cumplimiento,
   matrizFaseMotor,
   fasePorElemento,
@@ -118,7 +119,7 @@ export const ReviewGate: React.FC<Props> = ({
     );
   }
 
-  const porcentaje = cumplimiento(total);
+  const porcentaje = cumplimiento(total, contarParrafos(elements));
 
   return (
     <div style={{ flex: 1, overflowY: 'auto' }}>

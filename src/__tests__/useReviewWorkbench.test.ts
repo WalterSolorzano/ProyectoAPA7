@@ -286,10 +286,9 @@ describe('T12 — useReviewWorkbench', () => {
   it('con los tres motores ejecutados el cumplimiento sí es un número', () => {
     useDocStore.setState(tresMotores);
     const { result } = renderHook(() => useReviewWorkbench());
-    // 1 hallazgo (la ortografía) y la revisión IA de 10% no entra al panel:
-    // solo el motor con señales. Cumplimiento = 100 - 1x3.
+    // 1 hallazgo (la ortografía) en 2 párrafos: 100 - 200·(1/2) = 0.
     expect(result.current.items).toHaveLength(1);
-    expect(result.current.metrics.compliance).toBe(97);
+    expect(result.current.metrics.compliance).toBe(0);
   });
 
   it('el conteo de gravedad vive donde se ve, no en una métrica que nadie lee', () => {

@@ -76,14 +76,26 @@ export function leyesPorFase(items: readonly AuditItem[]): LeyPorFase[] {
 
 /* ── La puerta de estado: cumplimiento, matriz fase × motor ──────────────── */
 
+/** Párrafos de prosa corrida: el denominador de la calificación. No cuenta
+ *  títulos, figuras, tablas ni portada; la revisión se mide sobre el cuerpo. */
+export function contarParrafos(elements: readonly ElementModel[]): number {
+  let n = 0;
+  for (const e of elements) {
+    if (e.type === 'paragraph' || e.type === 'bullet' || e.type === 'numbered_list') n += 1;
+  }
+  return n;
+}
+
 /**
- * El porcentaje «LISTO PARA PUBLICAR». Es la ÚNICA definición del número: el
- * workbench publicaba `100 - total*3` inline y la puerta publicaría otra si se
- * dejara escrita dos veces. `total` son los hallazgos del documento; tres o
- * más bajan un punto porcentual cada uno, y el piso es cero.
+ * El porcentaje «LISTO PARA PUBLICAR», normalizado por TAMAÑO. La definición
+ * vieja (`100 - total*3`) llegaba a 0 con 34 hallazgos y una tesis real (100+)
+ * quedaba muerta. La nueva es la ÚNICA: cada hallazgo pesa 200/párrafos, y sin
+ * párrafos no hay nada que descontar (100).
  */
-export function cumplimiento(total: number): number {
-  return Math.max(0, Math.min(100, 100 - total * 3));
+export function cumplimiento(hallazgos: number, parrafos: number): number {
+  if (!parrafos || parrafos <= 0) return 100;
+  const valor = 100 - 200 * (hallazgos / parrafos);
+  return Math.max(0, Math.min(100, Math.round(valor)));
 }
 
 /** Los motores con columna en la matriz. Citas vive en su fase (paso 4). */

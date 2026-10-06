@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   repeticionCuerpo,
   leyesPorFase,
+  contarParrafos,
   cumplimiento,
   nivelCelda,
   fasePorElemento,
@@ -64,11 +65,32 @@ describe('leyesPorFase', () => {
   });
 });
 
+describe('contarParrafos', () => {
+  it('cuenta prosa corrida y no títulos, figuras ni tablas', () => {
+    const elements = [
+      { id: 'h1', type: 'heading', heading_level: 1, text: 'Método' },
+      { id: 'p1', type: 'paragraph', heading_level: null, text: 'uno' },
+      { id: 'b1', type: 'bullet', heading_level: null, text: 'dos' },
+      { id: 'n1', type: 'numbered_list', heading_level: null, text: 'tres' },
+      { id: 'img', type: 'image', heading_level: null, text: '' },
+    ] as ElementModel[];
+    expect(contarParrafos(elements)).toBe(3);
+  });
+});
+
 describe('cumplimiento', () => {
-  it('descuenta 3 puntos por hallazgo y no baja de cero', () => {
-    expect(cumplimiento(0)).toBe(100);
-    expect(cumplimiento(1)).toBe(97);
-    expect(cumplimiento(40)).toBe(0);
+  it('normaliza por tamaño: 12 hallazgos en 214 párrafos dan 89', () => {
+    expect(cumplimiento(12, 214)).toBe(89);
+  });
+
+  it('sin hallazgos es 100 y sin párrafos también es 100', () => {
+    expect(cumplimiento(0, 214)).toBe(100);
+    expect(cumplimiento(5, 0)).toBe(100);
+  });
+
+  it('nunca baja de 0 ni pasa de 100', () => {
+    expect(cumplimiento(1, 2)).toBe(0);
+    expect(cumplimiento(200, 100)).toBe(0);
   });
 });
 
