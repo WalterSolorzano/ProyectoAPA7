@@ -959,7 +959,10 @@ def generate_apa7_docx(
         cover_mode = getattr(portada, 'cover_mode', None) or (
             'keep_original' if getattr(portada, 'use_original_cover', True) else 'generate_apa7_template'
         )
-    if not original_file.exists():
+    # Sin documento original no hay portada que conservar: si el modo pedido era
+    # conservar, degradamos a la plantilla APA. Los modos que GENERAN portada
+    # (p. ej. 'generate_uni_cover') se respetan aunque no exista original.
+    if not original_file.exists() and cover_mode in ('keep_original', 'keep_design_update_data'):
         cover_mode = 'generate_apa7_template'
 
     # QUE MODOS CONSERVAN LA PORTADA ORIGINAL. Solo los que lo dicen.

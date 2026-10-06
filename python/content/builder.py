@@ -143,12 +143,19 @@ def build_content_document(
         elements=[],
     )
     doc.meta.autor = spec.meta.author or None
+    # Un modo que GENERA portada (p. ej. 'generate_uni_cover') nunca conserva la
+    # original, aunque use_original_cover venga en True por defecto.
+    _modo_genera = bool(spec.meta.cover_mode) and spec.meta.cover_mode not in (
+        "keep_original",
+        "keep_design_update_data",
+    )
     doc.portada = PortadaData(
         title=spec.meta.title,
         institution=spec.meta.institution,
         course=spec.meta.course or None,
         date=spec.meta.date or None,
-        use_original_cover=spec.meta.use_original_cover,
+        use_original_cover=False if _modo_genera else spec.meta.use_original_cover,
+        cover_mode=spec.meta.cover_mode,
     ).model_dump(mode="json")
 
     warnings: list[str] = []

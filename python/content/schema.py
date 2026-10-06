@@ -14,6 +14,9 @@ class MetaSpec(BaseModel):
     date: str = ""
     apa_format: str = "student"
     use_original_cover: bool = False
+    # "" => decidir por use_original_cover; "generate_uni_cover" => portada UNI;
+    # "generate_apa7_template" => portada APA sintetica.
+    cover_mode: str = ""
 
 
 class TableSpec(BaseModel):
