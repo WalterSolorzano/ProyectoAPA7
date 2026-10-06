@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { useDocStore } from './store/useDocStore';
+import { useAutosave } from './lib/useAutosave';
 import { railPendingInputFrom } from './hooks/useRailDestinations';
 import { pendingCountForPhase as pendingCountForPhaseIn } from './lib/railPending';
 import { crearRefrescador, refrescarDesdeWord, type DiffWord } from './lib/wordRefresh';
@@ -223,6 +224,10 @@ export const App: React.FC = () => {
     structureTab,
     setStructureTab,
   } = useDocStore();
+
+  /* Punto de restauración automático: cada 30 s, al ocultar la pestaña y al
+     cerrar, y solo si hay cambios. La guarda `isSaving` vive dentro del hook. */
+  useAutosave();
 
   // ── Context Menu Integration ──────────────────────────────────────────────
   const pendingOSFile = useRef<{ fileName: string; buffer: Uint8Array; isQuick?: boolean; filePath?: string } | null>(null);
