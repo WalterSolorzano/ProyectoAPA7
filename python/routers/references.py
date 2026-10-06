@@ -235,3 +235,121 @@ async def format_reference(req: FormatReferenceRequest) -> Dict[str, Any]:
         "apa_segments": [s.model_dump() for s in segs],
         "tipo": ref.tipo,
     }
+
+
+class VerifyReferenceItem(BaseModel):
+    """Una ficha ya cargada, tal como vive en el store del frontend."""
+    id: str
+    authors: List[str] = []
+    year: str = ""
+    title: str = ""
+    doi_or_url: str = ""
+
+
+class VerifyReferencesRequest(BaseModel):
+    references: List[VerifyReferenceItem] = []
+
+
+def _normalizar_titulo(texto: str) -> str:
+    import re as _re
+    import unicodedata as _ud
+
+    limpio = _ud.normalize("NFKD", texto or "").encode("ascii", "ignore").decode().lower()
+    return _re.sub(r"[^a-z0-9 ]+", " ", limpio).strip()
+
+
+def _titulos_parecidos(a: str, b: str) -> bool:
+    """Dos titulos son el mismo si se parecen lo suficiente.
+
+    La igualdad exacta es inutil (mayusculas, tildes, subtitulo de mas) y la
+    mera existencia de un resultado no prueba nada: un autor con un homonimo
+    publicando el mismo año devuelve candidatos con OTRO titulo, y marcarlos
+    como verificados seria afirmar sin dato. El umbral deja pasar variantes
+    reales del mismo titulo y rechaza el homonimo.
+    """
+    from difflib import SequenceMatcher
+
+    na, nb = _normalizar_titulo(a), _normalizar_titulo(b)
+    if not na or not nb:
+        return False
+    return SequenceMatcher(None, na, nb).ratio() >= 0.55
+
+
+@router.post("/api/references/verify")
+async def verify_references(req: VerifyReferencesRequest) -> Dict[str, Any]:
+    """Contrasta referencias YA cargadas contra una fuente real.
+
+    Es la respuesta a "por que todas estan Pendientes": una referencia pegada o
+    importada nace con `verificada=False` porque nadie la contrasto. Esto SI la
+    contrasta —DOI exacto primero, cascada autor+año+titulo despues— y solo
+    marca `verificada=True` cuando hay match confiable. Lo que no se encuentra
+    queda Pendiente, que es la verdad.
+
+    Marca `verificada`, pero NO reescribe la ficha: confirmar que una fuente
+    existe no autoriza a cambiarle el texto a la persona. Por eso no devuelve
+    `authors`/`formatted_apa`; el unico campo que agrega es el DOI normalizado
+    cuando la ficha no lo traia.
+    """
+    import modules.referencias_module as refmod
+    from modules.doi_resolver import normalize_doi
+
+    resultados: List[Dict[str, Any]] = []
+
+    for item in req.references:
+        resultado: Dict[str, Any] = {
+            "id": item.id,
+            "verificada": False,
+            "fuente_verificacion": None,
+        }
+        try:
+            doi = normalize_doi(item.doi_or_url or "")
+            if doi:
+                meta = await refmod.fetch_crossref_metadata(doi)
+                if meta:
+                    resultado.update({
+                        "verificada": True,
+                        "fuente_verificacion": "doi",
+                        "doi_or_url": item.doi_or_url or f"https://doi.org/{doi}",
+                    })
+                    resultados.append(resultado)
+                    continue
+
+            apellidos = [a.split(",")[0].strip() for a in item.authors if a and a.strip()]
+            res = await refmod.search_academic_metadata_cascade(
+                item.title or "", authors=apellidos, year=item.year)
+
+            match: Optional[dict] = None
+            if isinstance(res, dict):
+                candidatos = res.get("candidates")
+                if candidatos:
+                    # Sobre de busqueda por autor+año: exige relevancia alta,
+                    # mismo año y titulo parecido. Los tres a la vez, no uno.
+                    for cand in candidatos:
+                        if cand.get("relevance") != "high":
+                            continue
+                        if item.year and str(cand.get("year", "")).strip() != item.year.strip():
+                            continue
+                        if not _titulos_parecidos(item.title, cand.get("title", "")):
+                            continue
+                        match = cand
+                        break
+                elif res.get("title") and _titulos_parecidos(item.title, res.get("title", "")):
+                    # Dict plano (OpenAlex/Semantic Scholar) por titulo.
+                    if not item.year or str(res.get("year", "")).strip() == item.year.strip():
+                        match = res
+
+            if match:
+                resultado.update({
+                    "verificada": True,
+                    "fuente_verificacion": "cruzada",
+                })
+        except Exception as e:  # noqa: BLE001 — un fallo de red no tumba el lote
+            print(f"[WARN] No se pudo verificar la referencia {item.id}: {e}")
+        resultados.append(resultado)
+
+    verificadas = sum(1 for r in resultados if r["verificada"])
+    return {
+        "results": resultados,
+        "verificadas": verificadas,
+        "pendientes": len(resultados) - verificadas,
+    }

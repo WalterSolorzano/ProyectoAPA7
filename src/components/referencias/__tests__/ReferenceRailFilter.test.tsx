@@ -27,6 +27,24 @@ describe('ReferenceRailFilter', () => {
     expect(screen.getByText('12')).toBeDefined();
   });
 
+  /* El conteo de este filtro suma referencias sin verificar Y citas del texto
+     sin ficha, así que el rótulo no puede hablar de "huérfanas o incompletas":
+     eso nombra dos categorías que el número no mide. */
+  it('el rótulo del filtro de problemas describe lo que el conteo es', () => {
+    render(
+      <ReferenceRailFilter
+        filter="all"
+        counts={defaultCounts}
+        onSelectFilter={vi.fn()}
+      />,
+    );
+
+    const etiqueta = screen.getByRole('button', { name: /revisar/i }).getAttribute('aria-label') || '';
+    expect(etiqueta).toMatch(/sin verificar/i);
+    expect(etiqueta).toMatch(/sin ficha/i);
+    expect(etiqueta).not.toMatch(/huérfanas/i);
+  });
+
   it('marca el botón activo según la prop filter', () => {
     const { rerender } = render(
       <ReferenceRailFilter

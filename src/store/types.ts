@@ -506,6 +506,10 @@ export interface DocState {
   /** Tipo Zotero: un bloque de DOIs, uno por linea. Lo que falla se reporta
    *  sin tirar lo demas. */
   resolveDoisBlock: (text: string) => Promise<void>;
+  /** Contrasta las referencias YA cargadas contra una fuente real: DOI exacto
+   *  primero, cascada autor+año despues. Solo marca `verificada` con match
+   *  confiable; lo que no se encuentra queda Pendiente. */
+  verifyReferences: () => Promise<void>;
   resolveGhostCitation: (authors: string[], year: string) => Promise<{
     id: string; authors: string[]; year: string; title: string;
     source: string; doi_or_url: string; raw_text: string; formatted_apa: string;

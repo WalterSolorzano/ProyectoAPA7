@@ -52,7 +52,11 @@ export const ReferenceRailFilter: React.FC<ReferenceRailFilterProps> = ({
     },
     {
       id: 'issues',
-      label: 'Por revisar (huérfanas o incompletas)',
+      /* El rótulo describe lo que el conteo ES. El filtro agrupa las referencias
+         sin verificar, las que no se citan en el cuerpo, y las citas del texto
+         que no tienen ficha. Un número que sumaba 10 + 3 bajo el nombre
+         "huérfanas o incompletas" contaba cosas que no eran ésas. */
+      label: 'Por revisar (sin verificar, sin citar o sin ficha)',
       icon: AlertCircle,
       count: counts.issues,
       showBadge: counts.issues > 0,

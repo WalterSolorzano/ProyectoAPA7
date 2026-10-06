@@ -10,7 +10,7 @@ import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from 're
 import { useDocStore } from '../../store/useDocStore';
 import {
   Search, Plus, CheckCircle2, AlertTriangle, Link2, Loader2,
-  Trash2, Copy, Check, Pencil,
+  Trash2, Copy, Check, Pencil, BadgeCheck,
   ArrowRight, ArrowDownAZ, X, HelpCircle, FileText
 } from 'lucide-react';
 import { sortReferences, detectCitationStyle } from '../../api/backend';
@@ -37,8 +37,10 @@ import { getPageGeometry, PT_TO_PX } from '../../lib/pageGeometry';
 import type { PageRules } from '../layout/PaperCanvas';
 import { estimarAltoReferencia, paginarReferencias } from '../../lib/paginarBibliografia';
 
-/** Los tres grupos del catálogo, como pestañas cerradas: una lista a la vez. */
-type GroupTab = 'verificadas' | 'pendientes' | 'texto';
+/** Los grupos del catálogo, como pestañas cerradas: una lista a la vez.
+ *  `sincitar` es un EJE DISTINTO del estado (una referencia verificada puede no
+ *  citarse nunca), por eso convive con las otras pestañas y no las reemplaza. */
+type GroupTab = 'verificadas' | 'pendientes' | 'sincitar' | 'texto';
 
 /**
  * POR QUÉ esta referencia está en el estado en que está.
@@ -129,14 +131,17 @@ const HojaBibliografia: React.FC<{
     <>
       {/* Capa de medición: invisible, a la anchura útil real. */}
       <div
-        ref={medidorRef}
         aria-hidden="true"
         style={{
           position: 'absolute', visibility: 'hidden', pointerEvents: 'none',
           left: '-99999px', top: 0, width: geom.contentW,
         }}
       >
-        <div style={{ ...APA_LISTA }}>
+        {/* El `ref` va en el bloque que contiene UNA entrada por hijo: si vive en
+            el wrapper, `medidorRef.current.children` devuelve un solo nodo (la
+            lista entera) y `alturas` queda como [altoTotal], con lo que el
+            paginador cree que la primera referencia mide toda la bibliografía. */}
+        <div ref={medidorRef} style={{ ...APA_LISTA }}>
           {referencias.map((r) => <ReferenciaLinea key={r.id} referencia={r} />)}
         </div>
       </div>
@@ -182,6 +187,7 @@ export const Step5ReferencesWizard: React.FC = () => {
   const {
     doc, references, selectedReferenceId, setSelectedReferenceId, setSelectedElementId,
     addReference, removeReference, updateReferences, resolveDoiReference, resolveDoisBlock, isLoading,
+    verifyReferences,
     citationAuditResult, runCitationAudit, resolveGhostCitation, showToast,
     setScrollTargetId, rules,
   } = useDocStore();
@@ -257,6 +263,20 @@ export const Step5ReferencesWizard: React.FC = () => {
     }
   };
 
+  /* Verificar es una operacion de LISTA, como reordenar: contrasta cada ficha
+     contra su fuente y deja el veredicto en el store. El spinner es local para
+     no bloquear toda la pantalla con el `isLoading` global. */
+  const [verificando, setVerificando] = useState(false);
+  const handleVerificarBibliografia = async () => {
+    if (!references.length || verificando) return;
+    setVerificando(true);
+    try {
+      await verifyReferences();
+    } finally {
+      setVerificando(false);
+    }
+  };
+
   const ghosts = citationAuditResult?.ghost_citations || [];
   const orphans = citationAuditResult?.orphan_references || [];
 
@@ -313,6 +333,13 @@ export const Step5ReferencesWizard: React.FC = () => {
       .join(' ').toLowerCase().includes(queryNorm);
   const validFiltradas = validReferences.filter(coincide);
   const pendientesFiltradas = unverifiedReferences.filter(coincide);
+  /* `sincitar` cruza el eje del estado: una referencia verificada puede no
+     citarse en el cuerpo. El conjunto lo manda el backend (`huerfanas`) y es
+     `undefined` cuando la auditoría no corrió —por eso la pestaña solo existe
+     cuando hay un dato, y no como una lista vacía que finge haber mirado. */
+  const sinCitarFiltradas = huerfanas
+    ? references.filter((r) => huerfanas.has(String(r.id))).filter(coincide)
+    : null;
   const ghostsFiltrados = queryNorm
     ? ghosts.filter((g: unknown) => ghostText(g).toLowerCase().includes(queryNorm))
     : ghosts;
@@ -324,6 +351,12 @@ export const Step5ReferencesWizard: React.FC = () => {
   const tabs: { id: GroupTab; titulo: string; detalle: string; conteo: number; Icon: typeof CheckCircle2 }[] = [
     { id: 'verificadas', titulo: 'Verificadas', detalle: 'Contrastadas contra una fuente real.', conteo: validFiltradas.length, Icon: CheckCircle2 },
     { id: 'pendientes', titulo: 'Pendientes', detalle: 'Faltan datos o falta contrastarlas contra una fuente.', conteo: pendientesFiltradas.length, Icon: HelpCircle },
+    /* La pestaña existe sólo cuando la auditoría corrió (`sinCitarFiltradas`
+       null si no). Un grupo vacío que nadie pudo llenar sería otra afirmación
+       sin dato. */
+    ...(sinCitarFiltradas
+      ? [{ id: 'sincitar' as const, titulo: 'Sin citar', detalle: 'Están en la bibliografía pero no se citan en el cuerpo.', conteo: sinCitarFiltradas.length, Icon: FileText }]
+      : []),
     { id: 'texto', titulo: 'En texto, no en biblio', detalle: 'Citas que aparecen en el cuerpo y no tienen ficha.', conteo: ghostsFiltrados.length, Icon: AlertTriangle },
   ];
   const tabsVisibles = tabs.filter(
@@ -332,6 +365,17 @@ export const Step5ReferencesWizard: React.FC = () => {
       (railFilter === 'verified' && t.id === 'verificadas') ||
       (railFilter === 'issues' && t.id !== 'verificadas'),
   );
+
+  /* El badge del rail cuenta ELEMENTOS ÚNICOS bajo "por revisar": referencias
+     sin verificar ∪ referencias sin citar, más las citas del texto sin ficha
+     (que no son fichas). Una referencia que está sin verificar Y sin citar se
+     cuenta UNA vez, así el badge nunca miente por sumar dos vistas del mismo
+     dato. */
+  const issuesCount = (() => {
+    const ids = new Set<string>(unverifiedReferences.map((r) => r.id));
+    if (huerfanas) for (const r of references) if (huerfanas.has(String(r.id))) ids.add(r.id);
+    return ids.size + ghosts.length;
+  })();
   const tabActiva: GroupTab = tabsVisibles.some((t) => t.id === activeGroup)
     ? activeGroup
     : tabsVisibles[0]?.id ?? 'verificadas';
@@ -649,7 +693,7 @@ export const Step5ReferencesWizard: React.FC = () => {
           counts={{
             total: references.length,
             verified: validReferences.length,
-            issues: unverifiedReferences.length + ghosts.length,
+            issues: issuesCount,
           }}
           onSelectFilter={(f) => {
             setRailFilter(f);
@@ -700,6 +744,25 @@ export const Step5ReferencesWizard: React.FC = () => {
               style={{ ...inputFullStyle, paddingLeft: '34px' }}
             />
           </div>
+
+          {/* Verificar es de LISTA, como reordenar: contrasta TODA la bibliografía
+              de una vez. DOI exacto primero, autor+año despues; lo que no matchea
+              queda Pendiente. El veredicto lo pone el backend. */}
+          {references.length > 0 && (
+            <button
+              type="button"
+              onClick={handleVerificarBibliografia}
+              disabled={verificando}
+              style={{ ...botonInline(), opacity: verificando ? 0.6 : 1 }}
+              aria-label="Verificar bibliografía"
+              title="Contrasta cada referencia contra su fuente (DOI o autor/año)"
+            >
+              {verificando
+                ? <Loader2 size={12} className="animate-spin" strokeWidth="var(--icon-stroke)" aria-hidden="true" />
+                : <BadgeCheck size={12} strokeWidth="var(--icon-stroke)" aria-hidden="true" />}
+              <span>Verificar bibliografía</span>
+            </button>
+          )}
 
           {/* Operación de LISTA, no de fila: reordenar aplica a la bibliografía
               completa. El orden lo calcula el backend con la clave APA (apellido
@@ -823,6 +886,24 @@ export const Step5ReferencesWizard: React.FC = () => {
                     reference={refItem}
                     huerfana={huerfanas ? huerfanas.has(refItem.id) : null}
                     mentionedCount={mencionesPorRef.get(refItem.id) ?? 0}
+                    isSelected={selectedRef?.id === refItem.id}
+                    onSelect={() => setSelectedReferenceId(refItem.id)}
+                    onEdit={() => setEditingRef(refItem)}
+                  />
+                ))
+              )
+            )}
+
+            {tabActiva === 'sincitar' && (
+              (sinCitarFiltradas ?? []).length === 0 ? (
+                <EstadoVacio motivo="sin-resultados" filtroActivo="el grupo de referencias sin citar" />
+              ) : (
+                (sinCitarFiltradas ?? []).map((refItem) => (
+                  <ReferenceCatalogItem
+                    key={refItem.id}
+                    reference={refItem}
+                    huerfana={true}
+                    mentionedCount={0}
                     isSelected={selectedRef?.id === refItem.id}
                     onSelect={() => setSelectedReferenceId(refItem.id)}
                     onEdit={() => setEditingRef(refItem)}

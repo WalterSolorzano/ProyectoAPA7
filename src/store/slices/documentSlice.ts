@@ -1318,6 +1318,65 @@ export const createDocumentSlice: StateCreator<DocState, [], [], Partial<DocStat
       set({ isLoading: false });
     }
   },
+  verifyReferences: async () => {
+    /* Contrastar la bibliografia ya cargada. DOI exacto primero, autor+año
+       despues. El backend SOLO marca las que matchean con confianza; aca se
+       refleja ese veredicto y no se inventa uno: una referencia que no se pudo
+       contrastar sigue Pendiente. */
+    const refs = get().references;
+    if (!refs.length) return;
+    set({ isLoading: true });
+    try {
+      const res = await fetch(`${getApiBase()}/references/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          references: refs.map((r) => ({
+            id: r.id,
+            authors: r.authors ?? [],
+            year: r.year ?? '',
+            title: r.title ?? '',
+            doi_or_url: r.doi_or_url ?? '',
+          })),
+        }),
+      });
+      if (!res.ok) {
+        get().showToast(`No se pudo verificar la bibliografía (error ${res.status})`, 'error');
+        return;
+      }
+      const data = await res.json();
+      const porId = new Map(
+        ((data.results || []) as any[]).map((r) => [String(r.id), r]),
+      );
+      const actualizadas = refs.map((r) => {
+        const v = porId.get(String(r.id));
+        if (!v || !v.verificada) return r;
+        return {
+          ...r,
+          verificada: true,
+          fuente_verificacion: v.fuente_verificacion ?? 'cruzada',
+          // Solo se agrega el DOI que la ficha no tenia; no se reescribe nada.
+          doi_or_url: r.doi_or_url || v.doi_or_url || '',
+        };
+      });
+      get().updateReferences(actualizadas);
+
+      const verificadas = Number(data.verificadas ?? 0);
+      const pendientes = Number(data.pendientes ?? 0);
+      if (verificadas && !pendientes) {
+        get().showToast(`${verificadas} referencia(s) verificada(s)`, 'success');
+      } else if (verificadas && pendientes) {
+        get().showToast(`${verificadas} verificada(s), ${pendientes} sin coincidencia`, 'warning');
+      } else {
+        get().showToast('Ninguna referencia se pudo contrastar', 'warning');
+      }
+    } catch (e) {
+      console.error('Error verifying references:', e);
+      get().showToast(e instanceof Error ? e.message : 'Error al verificar la bibliografía', 'error');
+    } finally {
+      set({ isLoading: false });
+    }
+  },
   resolveGhostCitation: async (authors: string[], year: string) => {
     // NOTA: sin isLoading global — el overlay fullscreen de carga tapaba toda
     // la UI (parecía "volver al menú de carga"). El paso 4 ya muestra su propio
