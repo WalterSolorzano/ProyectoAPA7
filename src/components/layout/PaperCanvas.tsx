@@ -1472,7 +1472,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                 {isCoverPage && (portada.cover_mode === 'generate_uni_cover') && !portada.use_original_cover ? (
                   <UNICoverPreview />
                 ) : isCoverPage && !portada.use_original_cover ? (
-                  <APACoverEditor />
+                  <APACoverEditor soloLectura={readOnly} />
                 ) : isCoverPage && (coverHeaderTexts.length > 0 || coverAuthorTexts.length > 0 || coverFooterTexts.length > 0 || !!coverLogoImage || pageElements.some(e => e.is_cover_section || e.type === 'portada_block')) ? (
                   <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between', minHeight: 0, padding: '4px 0' }}>
 
@@ -1562,7 +1562,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                   value={editingCoverText}
                                   onChange={(e) => setEditingCoverText(e.target.value)}
                                   onBlur={() => {
-                                    if (editingCoverText !== editingElem.text) {
+                                    if (!readOnly && editingCoverText !== editingElem.text) {
                                       useDocStore.getState().updateElementText(editingElem.id, editingCoverText);
                                     }
                                     setEditingCoverElemId(null);
@@ -1570,7 +1570,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter' && !e.shiftKey) {
                                       e.preventDefault();
-                                      if (editingCoverText !== editingElem.text) {
+                                      if (!readOnly && editingCoverText !== editingElem.text) {
                                         useDocStore.getState().updateElementText(editingElem.id, editingCoverText);
                                       }
                                       setEditingCoverElemId(null);
@@ -1617,6 +1617,7 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                   title="Doble clic para editar datos de autor"
                                   onDoubleClick={(e) => {
                                     e.stopPropagation();
+                                    if (readOnly) return;
                                     const orig = group.elems.find((x) => x.id === card.originalElemId);
                                     if (orig) {
                                       setEditingCoverElemId(orig.id);
@@ -1655,7 +1656,9 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                         }
 
                         const elem = group.elem;
-                        const isEditing = editingCoverElemId === elem.id;
+                        /* Read-only (vista previa): la portada se mide, no se escribe.
+                           El editor no se abre ni aunque el doble clic fije el estado. */
+                        const isEditing = !readOnly && editingCoverElemId === elem.id;
                         const isSelected = selectedElementId === elem.id;
                         const align = (elem.alignment as any) || 'center';
                         const bold = elem.is_bold || false;

@@ -44,12 +44,15 @@ export const AiDocumentPreview: React.FC<AiDocumentPreviewProps> = ({ paragraphs
           </label>
         </div>
       </div>
-      <div style={{ flex: 1, overflowY: 'auto' }} onClick={(e) => {
-        const el = (e.target as HTMLElement).closest('[data-element-id]');
-        const id = el?.getAttribute('data-element-id');
-        if (id && aiMarks.has(id)) onOpenParagraph(id);
-      }}>
-        <PaperCanvas readOnly aiMarks={mostrar ? aiMarks : undefined} />
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {/* El clic viaja por `onElementClick` y no por burbujeo: el wrapper del
+            párrafo en `PaperCanvas` corta la propagación. Solo los párrafos
+            manchados abren su detalle; el resto no es navegable. */}
+        <PaperCanvas
+          readOnly
+          aiMarks={mostrar ? aiMarks : undefined}
+          onElementClick={(id) => { if (aiMarks.has(id)) onOpenParagraph(id); }}
+        />
       </div>
     </div>
   );
