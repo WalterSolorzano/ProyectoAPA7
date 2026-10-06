@@ -24,15 +24,16 @@ import {
 } from 'lucide-react';
 import type { ElementModel } from '../../types';
 import type { AuditItem } from '../../lib/auditItems';
+import type { AIReviewParagraph } from '../../api/backend';
 import { construirJerarquia, type NodoJerarquia } from '../../lib/jerarquia';
-import { construirHeatmap } from '../../lib/aiHeatmap';
-import { AiHeatmap } from './AiHeatmap';
-import { AiChapterGrid } from './AiChapterGrid';
+import { construirPerfilIA } from '../../lib/aiPerfil';
+import { AiProfile } from './AiProfile';
 import { AiChapterFocus } from './AiChapterFocus';
 import { EditorialMascot } from '../layout/EditorialMascot';
 
 export interface AiHierarchyProps {
   elements: readonly ElementModel[] | null;
+  paragraphs: readonly AIReviewParagraph[];
   items: readonly AuditItem[];
   activa?: string | 'all';
   onSelectPhase?: (phaseKey: string) => void;
@@ -68,6 +69,7 @@ interface ChapterViewData {
 
 export function AiHierarchy({
   elements,
+  paragraphs,
   items,
   activa,
   onSelectPhase,
@@ -249,18 +251,8 @@ export function AiHierarchy({
     });
   }, [elements, itemsByElemId, aiItems]);
 
-  // Mapa de calor H1 × rango de índice IA (mismo motor que alimenta el hero)
-  const { filas: heatFila, max: heatMax } = useMemo(
-    () =>
-      construirHeatmap(
-        chapters.map((c) => ({
-          id: c.id,
-          titulo: c.title,
-          findings: c.subsections.flatMap((s) => s.findings),
-        })),
-      ),
-    [chapters],
-  );
+  // Perfil completo del documento (misma fuente que el hero y el mapa)
+  const perfil = useMemo(() => construirPerfilIA(paragraphs, elements), [paragraphs, elements]);
 
   // Selección activa
   const effectiveH1Id = selectedH1Id || chapters[0]?.id || '';
@@ -277,27 +269,12 @@ export function AiHierarchy({
     currentSub?.findings[0] ||
     currentChapter?.subsections.flatMap((s) => s.findings)[0];
 
-  // Métricas macro
-  const totalParagraphsEstimated = useMemo(() => {
-    if (!elements) return 0;
-    return elements.filter((e) => e.type === 'paragraph' || e.type === 'block_quote').length || 1;
-  }, [elements]);
-
-  const flaggedParagraphsCount = aiItems.length;
-  const humanIntegrityPct =
-    totalParagraphsEstimated > 0
-      ? Math.max(0, Math.min(100, Math.round(((totalParagraphsEstimated - flaggedParagraphsCount) / totalParagraphsEstimated) * 100)))
-      : 100;
-  const syntheticPct = 100 - humanIntegrityPct;
-
-  const criticalPeakChapter = useMemo(() => {
-    if (!chapters.length) return null;
-    let maxChap = chapters[0];
-    for (const ch of chapters) {
-      if (ch.iaScore > maxChap.iaScore) maxChap = ch;
-    }
-    return maxChap;
-  }, [chapters]);
+  // Métricas macro: leídas del perfil, sin re-derivar conteos.
+  const humanIntegrityPct = perfil.vozHumana;
+  const syntheticPct = perfil.rigidezMedia;
+  const flaggedParagraphsCount = perfil.enAlerta;
+  const totalParagraphsEstimated = perfil.total;
+  const criticalPeakChapter = perfil.filaMasRigida;
 
   /* Navegación «Siguiente con IA»: recorre solo las secciones que tienen algo
      marcado, que es lo que el mapa existe para recorrer. Salta de capítulo en
@@ -327,6 +304,13 @@ export function AiHierarchy({
     if (busy || !onApplyParaphrase || !proposal.trim()) return;
     await onApplyParaphrase(finding, proposal);
     setAppliedIds((prev) => [...prev, finding.id]);
+  };
+
+  /* Un punto del perfil salta al hallazgo de ese párrafo en el workbench.
+     Si el párrafo no tiene hallazgo, el clic no tiene destino y no hace nada. */
+  const abrirParrafo = (elementId: string) => {
+    const it = itemsByElemId.get(elementId)?.[0];
+    if (it && onOpenInWorkbench) onOpenInWorkbench(it);
   };
 
   if (!elements || elements.length === 0) {
@@ -431,13 +415,9 @@ export function AiHierarchy({
             />
             <StatChip
               icon={<TrendingUp size={14} aria-hidden />}
-              valor={criticalPeakChapter ? `${criticalPeakChapter.iaScore}%` : '—'}
+              valor={criticalPeakChapter ? `${criticalPeakChapter.rigidezMedia}%` : '—'}
               etiqueta="pico crítico"
-              titulo={
-                criticalPeakChapter
-                  ? `${criticalPeakChapter.h1Number}: ${criticalPeakChapter.title}`
-                  : 'Sin picos de IA'
-              }
+              titulo={criticalPeakChapter ? criticalPeakChapter.titulo : 'Sin picos de IA'}
             />
           </div>
 
@@ -469,8 +449,7 @@ export function AiHierarchy({
           </div>
         </div>
 
-        {/* Mapa de calor H1 × rango */}
-        <AiHeatmap filas={heatFila} max={heatMax} />
+        {/* Perfil completo del documento */}
 
         {/* Criterio ético APA 7 */}
         <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', lineHeight: 1.4 }}>
@@ -498,14 +477,11 @@ export function AiHierarchy({
         </div>
       ) : (
         <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-6)' }}>
-          <AiChapterGrid
-            chapters={chapters.map((c) => ({
-              id: c.id,
-              titulo: c.title,
-              findings: c.subsections.flatMap((s) => s.findings),
-              score: c.iaScore,
-            }))}
-            onOpen={setCapAbierto}
+          <AiProfile
+            perfil={perfil}
+            activoH1Id={capAbierto}
+            onOpenPhase={setCapAbierto}
+            onSelectParrafo={abrirParrafo}
           />
         </div>
       )}

@@ -39,6 +39,9 @@ export interface ReviewWorkbenchProps {
 export function ReviewWorkbench({ onExit, initialPhase, initialEngine }: ReviewWorkbenchProps) {
   const wb = useReviewWorkbench();
   const doc = useDocStore((s) => s.doc);
+  /* Los párrafos medidos por el revisor IA. El perfil del mapa se construye de
+     acá, no de los hallazgos: es la fuente única que comparten hero y mapa. */
+  const reviewResult = useDocStore((s) => s.reviewResult);
   /* El interruptor que descarta los hallazgos sin decir nada. La vista lo lee
      para NOMBRARLO cuando la pantalla queda vacía: apagado, los motores corren,
      sus resultados se tiran, y sin esta lectura el motivo sería "no corrió
@@ -166,6 +169,7 @@ export function ReviewWorkbench({ onExit, initialPhase, initialEngine }: ReviewW
         {wb.viewMode === 'ia' ? (
           <AiHierarchy
             elements={doc?.elements ?? null}
+            paragraphs={reviewResult?.paragraphs ?? []}
             items={wb.items}
             activa={wb.phaseFilter}
             onSelectPhase={(key) => {

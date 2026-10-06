@@ -2,10 +2,9 @@ import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { AiHierarchy } from '../components/review/AiHierarchy';
-import { AiHeatmap } from '../components/review/AiHeatmap';
-import { AiChapterGrid } from '../components/review/AiChapterGrid';
 import type { ElementModel } from '../types';
 import type { AuditItem } from '../lib/auditItems';
+import type { AIReviewParagraph } from '../api/backend';
 
 const mockElements = [
   {
@@ -45,20 +44,27 @@ const mockAiItems: AuditItem[] = [
   },
 ];
 
+/* `index` es el índice del elemento en `elements` (así lo emite el backend). */
+const mockParagraphs = [
+  { element_id: 'h1-1', index: 0, type: 'heading', text: 'Capítulo 1: Introducción', ai_score: 10, ai_category: 'LOW', findings: [], spelling: [] },
+  { element_id: 'h2-1', index: 1, type: 'heading', text: '1.1 Contexto General', ai_score: 78, ai_category: 'HIGH', findings: [], spelling: [] },
+  { element_id: 'p-1', index: 2, type: 'paragraph', text: 'Este es un párrafo generado artificialmente con patrones típicos de un modelo de lenguaje.', ai_score: 55, ai_category: 'HIGH', findings: [], spelling: [] },
+] as unknown as AIReviewParagraph[];
+
 describe('AiHierarchy — Dashboard y Explorador Jerárquico', () => {
   it('renderiza estado vacío sin documento', () => {
-    render(<AiHierarchy elements={null} items={[]} />);
+    render(<AiHierarchy elements={null} items={[]} paragraphs={[]} />);
     expect(screen.getByText('Sin documento cargado')).toBeTruthy();
   });
 
   it('renderiza el macro dashboard con termómetro de voz humana', () => {
-    render(<AiHierarchy elements={mockElements} items={mockAiItems} />);
+    render(<AiHierarchy elements={mockElements} items={mockAiItems} paragraphs={mockParagraphs} />);
     expect(screen.getByText('Voz Autoral Humana')).toBeTruthy();
     expect(screen.getByText('Párrafos en Alerta')).toBeTruthy();
   });
 
   it('muestra la jerarquía de capítulos H1 y subsecciones', () => {
-    render(<AiHierarchy elements={mockElements} items={mockAiItems} />);
+    render(<AiHierarchy elements={mockElements} items={mockAiItems} paragraphs={mockParagraphs} />);
     expect(screen.getAllByText(/Capítulo 1/).length).toBeGreaterThan(0);
   });
 
@@ -67,8 +73,8 @@ describe('AiHierarchy — Dashboard y Explorador Jerárquico', () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });
 
-    render(<AiHierarchy elements={mockElements} items={mockAiItems} />);
-    fireEvent.click(screen.getByRole('button', { name: /Capítulo 1/ }));
+    render(<AiHierarchy elements={mockElements} items={mockAiItems} paragraphs={mockParagraphs} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Capítulo 1: Introducción' }));
     const copyBtn = screen.getByRole('button', { name: /Copiar/i });
     fireEvent.click(copyBtn);
     expect(writeText).toHaveBeenCalled();
@@ -82,75 +88,52 @@ describe('AiHierarchy — Dashboard y Explorador Jerárquico', () => {
       <AiHierarchy
         elements={mockElements}
         items={mockAiItems}
+        paragraphs={mockParagraphs}
         onApplyParaphrase={onApplyParaphrase}
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Capítulo 1/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Capítulo 1: Introducción' }));
     const applyBtn = screen.getByRole('button', { name: /Reemplazar en Manuscrito/i });
     fireEvent.click(applyBtn);
     expect(onApplyParaphrase).toHaveBeenCalledWith(mockAiItems[0], mockAiItems[0].suggestedText);
   });
 
-  it('el heatmap pinta una fila por capítulo y cuatro columnas de rango', () => {
-    render(
-      <AiHeatmap
-        filas={[
-          { h1Id: 'a', titulo: 'Intro', counts: [1, 0, 2, 0], total: 3, sinMedir: 0 },
-          { h1Id: 'b', titulo: 'Método', counts: [0, 0, 0, 1], total: 1, sinMedir: 1 },
-        ]}
-        max={2}
-      />,
-    );
-    expect(screen.getByText('Intro')).toBeTruthy();
-    expect(screen.getByText('Método')).toBeTruthy();
-    expect(screen.getAllByTestId('heatmap-col')).toHaveLength(4);
+  it('el perfil dibuja un punto por párrafo medido', () => {
+    render(<AiHierarchy elements={mockElements} items={mockAiItems} paragraphs={mockParagraphs} />);
+    expect(document.querySelectorAll('.aip-punto')).toHaveLength(mockParagraphs.length);
   });
 
-  it('los capítulos son rectángulos que abren el capítulo', () => {
-    const onOpen = vi.fn();
-    render(
-      <AiChapterGrid
-        chapters={[
-          { id: 'a', titulo: 'Intro', findings: [] },
-          { id: 'b', titulo: 'Método', findings: [] },
-        ]}
-        onOpen={onOpen}
-      />,
-    );
-    fireEvent.click(screen.getByText('Método'));
-    expect(onOpen).toHaveBeenCalledWith('b');
+  it('el perfil abre la fase al pulsar su título', () => {
+    render(<AiHierarchy elements={mockElements} items={mockAiItems} paragraphs={mockParagraphs} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Capítulo 1: Introducción' }));
+    expect(screen.getByText('‹ Mapa IA')).toBeTruthy();
   });
 
-  it('el heatmap trae la leyenda de la rampa', () => {
+  it('un punto con hallazgo salta al workbench', () => {
+    const onOpenInWorkbench = vi.fn();
     render(
-      <AiHeatmap
-        filas={[{ h1Id: 'a', titulo: 'Intro', counts: [1, 0, 2, 0], total: 3, sinMedir: 0 }]}
-        max={2}
+      <AiHierarchy
+        elements={mockElements}
+        items={mockAiItems}
+        paragraphs={mockParagraphs}
+        onOpenInWorkbench={onOpenInWorkbench}
       />,
     );
-    expect(screen.getByText('Nada')).toBeTruthy();
-    expect(screen.getByText('Muy alta')).toBeTruthy();
-  });
-
-  it('el capítulo con score dibuja su porcentaje y su rectángulo proporcional', () => {
-    render(
-      <AiChapterGrid
-        chapters={[{ id: 'a', titulo: 'Intro', findings: [], score: 72 }]}
-        onOpen={vi.fn()}
-      />,
-    );
-    expect(screen.getByText('72%')).toBeTruthy();
+    const puntos = document.querySelectorAll('.aip-punto');
+    /* puntos[1] es el párrafo index 1 → element_id 'h2-1', que sí tiene hallazgo. */
+    fireEvent.click(puntos[1] as HTMLElement);
+    expect(onOpenInWorkbench).toHaveBeenCalledWith(mockAiItems[0]);
   });
 
   it('el mapa ofrece Siguiente con IA', () => {
-    render(<AiHierarchy elements={mockElements} items={mockAiItems} />);
+    render(<AiHierarchy elements={mockElements} items={mockAiItems} paragraphs={mockParagraphs} />);
     expect(screen.getByRole('button', { name: /Siguiente con IA/i })).toBeTruthy();
   });
 
   it('el botón de volver del capítulo aislado dice «‹ Mapa IA»', () => {
-    render(<AiHierarchy elements={mockElements} items={mockAiItems} />);
-    fireEvent.click(screen.getByRole('button', { name: /Capítulo 1/ }));
+    render(<AiHierarchy elements={mockElements} items={mockAiItems} paragraphs={mockParagraphs} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Capítulo 1: Introducción' }));
     expect(screen.getByText('‹ Mapa IA')).toBeTruthy();
   });
 });

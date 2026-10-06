@@ -75,6 +75,7 @@ export const AiRoom: React.FC<Props> = ({ reviewResult, elements, aiItems = [], 
       </div>
       <AiHierarchy
         elements={elements}
+        paragraphs={reviewResult?.paragraphs ?? []}
         items={aiItems}
         onApplyParaphrase={async (item, newText) => {
           onReplace?.(item.id, newText);
