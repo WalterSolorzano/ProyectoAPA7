@@ -43,7 +43,9 @@ export const AiSectionDetail: React.FC<AiSectionDetailProps> = ({ fila, paragrap
     return [...mapa.values()].sort((a, b) => Math.max(...b.parrafos.map((p) => p.score)) - Math.max(...a.parrafos.map((p) => p.score)));
   }, [visibles]);
 
-  const parrafo = fila.parrafos.find((p) => p.elementId === sel) ?? visibles[0] ?? null;
+  /* El panel derecho se resuelve SIEMPRE desde la banda activa: si la selección
+     quedó fuera del filtro, cae al primer párrafo visible (índice 0). */
+  const parrafo = (sel ? visibles.find((p) => p.elementId === sel) : undefined) ?? visibles[0] ?? null;
   const detalle = parrafo ? paragraphs[parrafo.index] : null;
   const contar = (b: IndiceBanda) => fila.parrafos.filter((p) => bandaDe(p.score) === b).length;
 

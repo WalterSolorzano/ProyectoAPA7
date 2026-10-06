@@ -31,6 +31,14 @@ describe('AiSectionDetail (IA-L1)', () => {
     expect(screen.getByText('Párrafo 2')).toBeTruthy();
   });
 
+  it('resuelve el panel derecho desde la banda activa, no desde la selección excluida', () => {
+    render(<AiSectionDetail fila={fila} paragraphs={paragraphs} onBack={vi.fn()} onMark={vi.fn()} />);
+    expect(screen.getByText('Apertura genérica')).toBeTruthy();
+    fireEvent.click(screen.getByText('Medio · 1'));
+    expect(screen.queryByText('Apertura genérica')).toBeNull();
+    expect(screen.getByText('Conector formulario')).toBeTruthy();
+  });
+
   it('marca para revisar y nunca ofrece Aceptar', () => {
     const onMark = vi.fn();
     render(<AiSectionDetail fila={fila} paragraphs={paragraphs} onBack={vi.fn()} onMark={onMark} />);
