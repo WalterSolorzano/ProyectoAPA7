@@ -18,6 +18,7 @@
 import type { ElementModel, ProofreadFinding } from '../types';
 import { PROOFREAD_SPECS, mensajeDelMotor } from './rotulos';
 import type { ProofreadSource } from './rotulos';
+import { UMBRAL_IA } from './aiPerfil';
 
 /* `PROOFREAD_SPECS` y `ProofreadSource` viven en `lib/rotulos.ts` y se reexportan
    acá. La tabla de reglas y la de rótulos son la misma pregunta en dos pasos —de
@@ -199,10 +200,6 @@ export function proofreadRow(kind: string, f: ProofreadSource): ProofreadRow {
   };
 }
 
-/** Párrafo con probabilidad alta o categoría MEDIA+: el umbral que usa la
- *  pantalla. "Alta" es 45, no 50: el mismo número que ella, escrito una vez. */
-export const AI_PARAGRAPH_THRESHOLD = 45;
-
 export interface AIReviewParagraph {
   element_id?: string;
   text?: string;
@@ -252,14 +249,18 @@ export function collectAuditItems(
     return id;
   };
 
-  // 1. Detector de IA: párrafos con probabilidad alta o categoría MEDIA+.
+  // 1. Detector de IA: párrafos medidos por encima del umbral; los que llegan
+  //    sin puntuación entran solo por su categoría, sin inventar un número.
   for (const [idx, p] of (reviewResult?.paragraphs || []).entries()) {
     const score = p.ai_score || 0;
-    if (!(score >= AI_PARAGRAPH_THRESHOLD || p.ai_category === 'HIGH' || p.ai_category === 'MEDIUM')) continue;
+    const medido = score > 0;
+    const entra = medido
+      ? score >= UMBRAL_IA
+      : p.ai_category === 'HIGH' || p.ai_category === 'MEDIUM';
+    if (!entra) continue;
     // `ai_score` ausente o cero no es un 60% ni un 50%: es "no medido". Un
     // párrafo puede entrar por `ai_category` con la puntuación sin calcular,
     // y mostrarle un número al usuario sería inventarlo.
-    const medido = score > 0;
     out.push({
       // El elemento es la identidad del párrafo. Solo se recurre al índice
       // cuando el revisor no lo trajo: sin él no hay nada estable, y un id

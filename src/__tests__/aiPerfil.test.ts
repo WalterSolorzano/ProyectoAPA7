@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { construirPerfilIA, bandaDe, BANDAS_IA, CLAVE_DOC } from '../lib/aiPerfil';
+import { construirPerfilIA, bandaDe, BANDAS_IA, CLAVE_DOC, UMBRAL_IA } from '../lib/aiPerfil';
 import type { AIReviewParagraph } from '../api/backend';
 import type { ElementModel } from '../types';
 
@@ -133,5 +133,12 @@ describe('construirPerfilIA — identidad de fase, fases vacías y carriles', ()
     const perfil = construirPerfilIA([par(1, 50), par(2, 51), par(3, 52)], els);
     const carriles = perfil.filas[0].parrafos.map((x) => x.carril);
     expect(new Set(carriles).size).toBeGreaterThan(1);
+  });
+});
+
+describe('umbral único de IA', () => {
+  it('es 50 y coincide con la banda alta', () => {
+    expect(UMBRAL_IA).toBe(50);
+    expect(bandaDe(UMBRAL_IA)).toBe(2);
   });
 });

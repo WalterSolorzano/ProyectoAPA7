@@ -2919,6 +2919,10 @@ async def debug_logging_middleware(request: Request, call_next):
 
 # ── SERVIR FRONTEND ESTATICO ──────────────────────────────────────────────────
 
+# Umbral ÚNICO de alerta de IA (0–100), espejo de `UMBRAL_IA` en src/lib/aiPerfil.ts.
+AI_UMBRAL = 50
+
+
 @app.post("/api/ai-review/{session_id}")
 async def ai_review_endpoint(session_id: str, request: Request) -> dict:
     """
@@ -2998,7 +3002,7 @@ async def ai_review_endpoint(session_id: str, request: Request) -> dict:
             "findings": findings,
             "spelling": [],
         })
-        if ai_score >= 40:
+        if ai_score >= AI_UMBRAL:
             flagged += 1
         score_sum += ai_score
         score_n += 1

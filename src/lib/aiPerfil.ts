@@ -19,7 +19,9 @@ export function bandaDe(score: number): IndiceBanda {
   return 3;
 }
 
-export const ALERTA_MIN = 50;
+/** Umbral ÚNICO de alerta de IA (0–100), alineado a la banda `alta`. Espejo de
+ *  `AI_UMBRAL` en `python/main.py`; `test_umbral_ia.py` falla si divergen. */
+export const UMBRAL_IA = 50;
 export const CLAVE_DOC = '__doc__';
 
 export interface ParrafoPerfilIA {

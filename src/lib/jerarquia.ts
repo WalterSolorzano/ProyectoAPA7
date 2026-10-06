@@ -93,15 +93,22 @@ const NO_ALNUM = /[^a-z0-9\s]+/g;
 const ESPACIOS = /\s+/g;
 
 /* El vocabulario: rótulo normalizado -> clave de fase. `PHASE_LABELS` es el
-   espejo declarado del backend y trae un rótulo por fase. */
-const VOCABULARIO: VocabularioFases = (() => {
+   espejo declarado del backend y trae un rótulo por fase. Se construye en la
+   PRIMERA llamada, no al evaluar el módulo: `PHASE_LABELS` vive en
+   `auditItems.ts`, que importa `aiPerfil.ts`, que importa este archivo; leer la
+   tabla durante la evaluación encontraría el ciclo a medio inicializar. Como el
+   vocabulario es un dato estable, se memoiza. */
+let VOCABULARIO_LOCAL: VocabularioFases | null = null;
+function vocabularioLocal(): VocabularioFases {
+  if (VOCABULARIO_LOCAL) return VOCABULARIO_LOCAL;
   const m = new Map<string, string>();
   for (const clave of Object.keys(PHASE_LABELS)) {
     if (clave === CLAVE_SIN_FASE) continue;
     m.set(normalizarTitulo(clave), clave);
   }
+  VOCABULARIO_LOCAL = m;
   return m;
-})();
+}
 
 /* ── El vocabulario, como dato ─────────────────────────────────────────────── */
 
@@ -197,7 +204,7 @@ function sinNumeracion(s: string): string {
 export function faseDeTitulo(
   titulo: string,
   estricto: boolean,
-  vocabulario: VocabularioFases = VOCABULARIO,
+  vocabulario: VocabularioFases = vocabularioLocal(),
 ): string | null {
   const crudo = sinNumeracion(titulo || '');
   if (!crudo) return null;
@@ -419,7 +426,7 @@ export type FasesConocidas = Readonly<Record<string, string>>;
 export function construirJerarquia(
   elementos: readonly ElementModel[],
   faseConocida: FasesConocidas = {},
-  vocabulario: VocabularioFases = VOCABULARIO,
+  vocabulario: VocabularioFases = vocabularioLocal(),
 ): NodoJerarquia[] {
   const raices: NodoJerarquia[] = [];
   /* La cadena de ancestros: el último es donde cuelga el contenido. */
