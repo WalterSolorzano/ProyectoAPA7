@@ -32,4 +32,6 @@ docx2pdf>=0.0.1; sys_platform == "win32"
 cryptography>=42.0.0
 # Servidor MCP (FastMCP) para que un agente de IA construya y formatee .docx
 # sin leer el repositorio. Se bundlea en el runtime embebido del instalador.
-mcp>=1.2.0
+# Se acota a <2: en mcp 2.x FastMCP se renombro a MCPServer y mcp.server.fastmcp
+# desaparecio, lo que rompe mcp_server.py.
+mcp>=1.2.0,<2
