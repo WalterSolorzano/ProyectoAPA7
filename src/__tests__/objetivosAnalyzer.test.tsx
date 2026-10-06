@@ -44,6 +44,21 @@ describe('ObjetivosAnalyzer (REV-L2)', () => {
     expect(onMark).toHaveBeenCalledWith('e1');
   });
 
+  it('no pinta alarma cuando todos cumplen: pastilla verde, mascota feliz', () => {
+    const limpio = [
+      { id: 'h1', type: 'heading', heading_level: 1, text: 'Objetivos' },
+      { id: 'h2g', type: 'heading', heading_level: 2, text: 'Objetivo general' },
+      { id: 'g', type: 'paragraph', heading_level: null, text: 'Analizar el impacto de la transformación digital.' },
+      { id: 'h2e', type: 'heading', heading_level: 2, text: 'Objetivos específicos' },
+      { id: 'e1', type: 'paragraph', heading_level: null, text: 'Analizar los datos recogidos en la institución.' },
+    ] as ElementModel[];
+    const { container } = render(<ObjetivosAnalyzer elements={limpio} onApply={vi.fn()} onBack={vi.fn()} />);
+    expect(screen.getByText('Sin pendientes')).toBeTruthy();
+    expect(screen.getByText(/Los 2 objetivos cumplen el nivel exigido/)).toBeTruthy();
+    expect(screen.queryByText('Requiere atención')).toBeNull();
+    expect(container.querySelector('.editorial-mascot-expression-happy')).toBeTruthy();
+  });
+
   it('no ofrece aplicar cuando el único problema es que no declara variable', () => {
     const soloVariable = [
       { id: 'h1', type: 'heading', heading_level: 1, text: 'Objetivos' },

@@ -9,6 +9,7 @@ import { ArrowLeft } from 'lucide-react';
 import type { ElementModel } from '../../types';
 import { objetivosBloom, reemplazarVerbo, type ObjetivoBloom } from '../../lib/contentReview';
 import { resumenObjetivos } from '../../lib/revisionResumen';
+import { fraseDeObjetivos } from '../../lib/mascotaFrases';
 import { MascotaFrase } from './MascotaFrase';
 
 export interface ObjetivosAnalyzerProps {
@@ -56,6 +57,18 @@ export const ObjetivosAnalyzer: React.FC<ObjetivosAnalyzerProps> = ({ elements, 
   const especificos = resumen.especificos;
   const aplicables = useMemo(() => objetivos.filter(aplicable), [objetivos]);
 
+  /** Estado real del panel: un panel limpio no pinta alarma ni pone cara triste. */
+  const sinObjetivos = objetivos.length === 0;
+  const todoOk = resumen.estado === 'todo_cumple';
+  const mediblesOk = !sinObjetivos && resumen.medibles === objetivos.length;
+  const variableOk = !sinObjetivos && resumen.conVariable === objetivos.length;
+  const pastilla = todoOk
+    ? { texto: 'Sin pendientes', estilo: pastillaOk }
+    : sinObjetivos
+      ? { texto: 'Sin objetivos', estilo: pastillaNeutra }
+      : { texto: 'Requiere atención', estilo: pastillaAlerta };
+  const expresion = todoOk ? 'happy' : sinObjetivos ? 'neutral' : 'worried';
+
   const elegir = (id: string, verbo: string) => setElegidos((s) => ({ ...s, [id]: verbo }));
   const verboDe = (o: ObjetivoBloom): string => elegidos[o.elementId] ?? o.alternativas[0];
   const aplicarTodas = () => {
@@ -78,16 +91,16 @@ export const ObjetivosAnalyzer: React.FC<ObjetivosAnalyzerProps> = ({ elements, 
 
         <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 290px', gap: 'var(--space-5)', padding: 'var(--space-5)', borderBottom: '1px solid var(--color-border-subtle)', alignItems: 'center' }}>
           <div>
-            <span style={pastillaAlerta}>Requiere atención</span>
+            <span style={pastilla.estilo}>{pastilla.texto}</span>
             <h3 style={{ margin: 'var(--space-2) 0 0', fontSize: 'var(--text-xl)', fontWeight: 750, color: 'var(--color-text-primary)' }}>{resumen.veredicto}</h3>
             <p style={sub}>{subObjetivos(objetivos)}</p>
             <div style={statsCard}>
               <Stat n={`${general?.nivelActual ?? '—'}/6`} k="nivel del general" primero />
-              <Stat n={`${resumen.medibles}/${objetivos.length}`} k="medibles" tono="var(--color-warning)" />
-              <Stat n={`${resumen.conVariable}`} k="con variable" tono="var(--color-warning)" />
+              <Stat n={`${resumen.medibles}/${objetivos.length}`} k="medibles" tono={mediblesOk ? 'var(--color-success)' : 'var(--color-warning)'} />
+              <Stat n={`${resumen.conVariable}`} k="con variable" tono={variableOk ? 'var(--color-success)' : 'var(--color-warning)'} />
             </div>
           </div>
-          <MascotaFrase frase={general && general.sinVariable ? '«Conocer» no se puede medir. Ni tú sabes cuándo terminaste.' : 'Cada objetivo, un verbo medible.'} kind="ruler" expression="worried" />
+          <MascotaFrase frase={fraseDeObjetivos(resumen.estado, general?.elementId ?? 'objetivos')} kind="ruler" expression={expresion} size={76} />
         </section>
 
         <section style={{ padding: 'var(--space-5)', borderBottom: '1px solid var(--color-border-subtle)' }}>
@@ -270,6 +283,8 @@ const nota: React.CSSProperties = { margin: 'var(--space-3) 0 0', fontSize: 'var
 const sub: React.CSSProperties = { margin: 'var(--space-2) 0 0', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', lineHeight: 1.45 };
 const statsCard: React.CSSProperties = { display: 'flex', alignItems: 'stretch', marginTop: 'var(--space-4)', border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', background: 'var(--color-bg-surface)', width: 'fit-content' };
 const pastillaAlerta: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', padding: '2px 8px', borderRadius: 'var(--radius-full)', color: 'var(--color-warning)', background: 'var(--color-warning-a12)', border: '1px solid var(--color-warning-a30)' };
+const pastillaOk: React.CSSProperties = { ...pastillaAlerta, color: 'var(--color-success)', background: 'var(--color-success-a14)', border: '1px solid var(--color-success)' };
+const pastillaNeutra: React.CSSProperties = { ...pastillaAlerta, color: 'var(--color-text-secondary)', background: 'var(--color-bg-surface-alt)', border: '1px solid var(--color-border-subtle)' };
 const ancla: React.CSSProperties = { border: '1px solid var(--color-accent-a30)', background: 'var(--color-accent-a05)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-3) var(--space-4)' };
 const etiquetaAncla: React.CSSProperties = { fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-accent)', border: '1px solid var(--color-accent-a40)', borderRadius: 'var(--radius-full)', padding: '1px 8px' };
 const enumBadge: React.CSSProperties = { display: 'inline-grid', placeItems: 'center', width: 20, height: 20, borderRadius: 'var(--radius-xs)', background: 'var(--color-bg-surface-alt)', border: '1px solid var(--color-border-strong)', fontSize: 'var(--text-xs)', fontWeight: 700, marginRight: 'var(--space-1)', verticalAlign: 'middle' };

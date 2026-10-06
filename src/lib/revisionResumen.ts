@@ -5,6 +5,7 @@ import type { AuditItem, EngineId, Severity } from './auditItems';
 import { phaseLabel } from './auditItems';
 import { cumplimiento, fasePorElemento } from './informeRevision';
 import { objetivosBloom, type ObjetivoBloom } from './contentReview';
+import type { EstadoObjetivos } from './mascotaFrases';
 
 export interface ResumenMotor {
   motor: EngineId;
@@ -89,6 +90,9 @@ export interface ResumenObjetivos {
   conVariable: number;
   nivelGeneral: number | null;
   veredicto: string;
+  /** Combinación real de fallas: gobierna pastilla, veredicto y frase de la
+   *  mascota. `todo_cumple` es un estado de primera clase, no ausencia de daño. */
+  estado: EstadoObjetivos;
   /** Todos los objetivos del documento (general + específicos): el denominador
    *  honesto de los KPIs. */
   total: number;
@@ -106,20 +110,42 @@ export function resumenObjetivos(elements: readonly ElementModel[]): ResumenObje
   const esMedible = (o: ObjetivoBloom) => !o.sinVariable && o.nivelActual !== null && !o.tieneDosVerbos;
   const medibles = objetivos.filter(esMedible).length;
   const conVariable = objetivos.filter((o) => !o.sinVariable).length;
-  const noCumplen = objetivos.filter((o) => !esMedible(o) || (o.nivelActual ?? 0) < 4).length;
+  const cumple = (o: ObjetivoBloom) => esMedible(o) && (o.nivelActual ?? 0) >= 4;
+  const noCumplen = objetivos.filter((o) => !cumple(o)).length;
   const porEstado = { noMedibles: 0, sinVariable: 0, cumplen: 0 };
   for (const o of objetivos) {
     if (o.nivelActual === null) porEstado.noMedibles += 1;
     else if (o.sinVariable) porEstado.sinVariable += 1;
     else porEstado.cumplen += 1;
   }
+  const nGen = general?.nivelActual ?? null;
+  const jerarquiaRota = general !== null
+    && nGen !== null
+    && especificos.some((o) => o.nivelActual !== null && o.nivelActual > nGen);
+  let estado: EstadoObjetivos;
+  if (objetivos.length === 0) estado = 'sin_objetivos';
+  else if (general === null) estado = 'sin_general';
+  else if (noCumplen === 0) estado = 'todo_cumple';
+  else if (!cumple(general)) estado = 'general_falla';
+  else if (jerarquiaRota) estado = 'jerarquia_rota';
+  else if (objetivos.some((o) => o.sinVariable)) estado = 'sin_variable';
+  else if (objetivos.some((o) => o.tieneDosVerbos)) estado = 'dos_verbos';
+  else if (objetivos.some((o) => o.nivelActual === null)) estado = 'verbo_vago';
+  else estado = 'nivel_bajo';
+
+  const veredicto = objetivos.length === 0
+    ? 'No se detectaron objetivos en el documento'
+    : noCumplen === 0
+      ? `Los ${objetivos.length} objetivos cumplen el nivel exigido`
+      : `${noCumplen} de ${objetivos.length} objetivos no cumplen el nivel exigido`;
   return {
     general,
     especificos,
     medibles,
     conVariable,
-    nivelGeneral: general?.nivelActual ?? null,
-    veredicto: `${noCumplen} de ${objetivos.length} objetivos no cumplen el nivel exigido`,
+    nivelGeneral: nGen,
+    veredicto,
+    estado,
     total: objetivos.length,
     porEstado,
   };
