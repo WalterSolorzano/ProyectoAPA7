@@ -13,7 +13,7 @@
  * Sin métricas ni diagnósticos: eso vive en el árbol y en el panel derecho.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, FileText } from 'lucide-react';
 import type { NodoJerarquia } from '../../lib/jerarquia';
 
@@ -44,6 +44,23 @@ export const IndicePrevisualizacion: React.FC<IndicePrevisualizacionProps> = ({
   paginaDe,
 }) => {
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set());
+
+  /* Al subir la profundidad se despliegan los H1: un control que no muestra
+   * nada hasta que uno expande a mano parece roto. El primer render no toca
+   * nada —por defecto el capítulo manda y sus secciones arrancan plegadas—;
+   * después, solo cuando el usuario mueve la profundidad. */
+  const raicesRef = useRef(raices);
+  raicesRef.current = raices;
+  const primeraProfundidad = useRef(true);
+  useEffect(() => {
+    if (primeraProfundidad.current) {
+      primeraProfundidad.current = false;
+      return;
+    }
+    if (profundidadMaxima > 1) {
+      setAbiertos(new Set(raicesRef.current.map((n) => n.id)));
+    }
+  }, [profundidadMaxima]);
 
   const toggle = (id: string) =>
     setAbiertos((prev) => {

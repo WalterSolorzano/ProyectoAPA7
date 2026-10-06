@@ -56,9 +56,38 @@ export const etiquetaCortada = (titulo: string, max: number = CARACTERES_POR_NOD
   return limpio.length > max ? `${limpio.slice(0, max - 1).trimEnd()}…` : limpio;
 };
 
+/** Dos conjuntos con exactamente los mismos miembros. */
+const mismoConjunto = (a: ReadonlySet<number>, b: ReadonlySet<number>): boolean => {
+  if (a.size !== b.size) return false;
+  for (const valor of a) if (!b.has(valor)) return false;
+  return true;
+};
+
+/** El zoom vive entre 0.5× y 3×: más allá el mapa deja de leerse. */
+export const limitarEscala = (valor: number): number => Math.min(3, Math.max(0.5, valor));
+
+/**
+ * El desplazamiento nunca saca el contenido de la vista: siempre queda un
+ * margen de lienzo visible para poder volver. Sin esto, un arrastre largo deja
+ * el diagrama fuera de pantalla y hay que pulsar «Ajustar» para recuperarlo.
+ */
+export const limitarPan = (
+  pan: { x: number; y: number },
+  escala: number,
+  ancho: number,
+  alto: number,
+): { x: number; y: number } => {
+  const margen = 60;
+  return {
+    x: Math.min(ancho - margen, Math.max(margen - escala * ancho, pan.x)),
+    y: Math.min(alto - margen, Math.max(margen - escala * alto, pan.y)),
+  };
+};
+
 export const posicionesDe = (
   raices: readonly NodoJerarquia[],
   nivelBase = 1,
+  textosTitulo?: ReadonlyMap<string, string>,
 ): PosicionNodo[] => {
   const posiciones: PosicionNodo[] = [];
   let fila = 0;
@@ -66,14 +95,18 @@ export const posicionesDe = (
   const visitar = (nodos: readonly NodoJerarquia[], nivel: number): PosicionNodo[] => {
     const delNivel: PosicionNodo[] = [];
     for (const nodo of nodos) {
-      const etiqueta = etiquetaCortada(nodo.titulo);
+      /* El título visible sale de la MISMA numeración que el índice y el
+       * lienzo; sin mapa de textos cae al título íntegro del documento. */
+      const tituloMostrado =
+        (nodo.elementoId ? textosTitulo?.get(nodo.elementoId) : undefined) ?? nodo.titulo;
+      const etiqueta = etiquetaCortada(tituloMostrado);
       const pos: PosicionNodo = {
         nodo,
         nivel,
         x: MARGEN + (nivel - nivelBase) * (ANCHO_NODO + SEPARACION_X),
         y: 0,
         etiqueta,
-        truncada: etiqueta !== String(nodo.titulo ?? '').trim(),
+        truncada: etiqueta !== String(tituloMostrado ?? '').trim(),
         hijos: nodo.hijos.length,
       };
       posiciones.push(pos);
@@ -156,6 +189,8 @@ export interface MapaEstructuraProps {
   onSelect?: (nodo: NodoJerarquia) => void;
   nodoSeleccionadoId?: string | null;
   onReubicar?: (origenId: string, destinoId: string) => void;
+  /** Título ya numerado por id de elemento, la misma fuente que el índice. */
+  textosTitulo?: ReadonlyMap<string, string>;
 }
 
 export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
@@ -163,10 +198,14 @@ export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
   onSelect,
   nodoSeleccionadoId,
   onReubicar,
+  textosTitulo,
 }) => {
-  const [soloTitulos, setSoloTitulos] = useState(false);
+  /* Niveles APAGADOS a mano. Vacío = se ve todo, que es el estado natural: el
+   * filtro es una ayuda para mirar, no un modo por defecto. */
+  const [nivelesOcultos, setNivelesOcultos] = useState<ReadonlySet<number>>(new Set());
   const [escala, setEscala] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [arrastrandoLienzo, setArrastrandoLienzo] = useState(false);
   const [dragging, setDragging] = useState<string | null>(null);
   const [destino, setDestino] = useState<string | null>(null);
   const [fantasma, setFantasma] = useState<{ x: number; y: number } | null>(null);
@@ -176,6 +215,13 @@ export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
   const arrastroRef = useRef(false);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const rafRef = useRef<number | null>(null);
+  /* La rueda se escucha NATIVA (abajo) para poder frenar el scroll: React
+   * registra `onWheel` como pasivo y `preventDefault` allí no hace nada. */
+  const escalaRef = useRef(escala);
+  escalaRef.current = escala;
+  const panRef = useRef(pan);
+  panRef.current = pan;
+  const limitesRef = useRef({ ancho: 1, alto: 1 });
 
   /* La raíz sintética: el documento del que cuelgan las H1. Existe solo para
    * el dibujo, no es un elemento del documento ni se puede seleccionar. */
@@ -196,7 +242,10 @@ export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
     [raices],
   );
 
-  const todas = useMemo(() => posicionesDe([raizDocumento], 0), [raizDocumento]);
+  const todas = useMemo(
+    () => posicionesDe([raizDocumento], 0, textosTitulo),
+    [raizDocumento, textosTitulo],
+  );
 
   /* Las posiciones DIBUJADAS: nacen en el layout calculado y viajan hacia el
    * nuevo cuando `raices` cambia, para que mover una fase se VEA moverse y las
@@ -240,10 +289,70 @@ export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
     };
   }, [firmaObjetivo, todas]);
 
+  /* Zoom con la rueda, anclado al cursor. El punto bajo el puntero se queda
+   * quieto; acercar en la esquina obligaría a perseguir el nodo. Listener
+   * nativo con `passive: false`: sin eso, la página scrollea en vez de acercar. */
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg || typeof svg.addEventListener !== 'function') return;
+    const alRodar = (e: WheelEvent) => {
+      e.preventDefault();
+      const escalaVieja = escalaRef.current;
+      const escalaNueva = limitarEscala(escalaVieja * Math.exp(-e.deltaY * 0.0015));
+      if (escalaNueva === escalaVieja) return;
+      const p = panRef.current;
+      let ancla: { x: number; y: number } | null = null;
+      if (typeof svg.getScreenCTM === 'function' && typeof svg.createSVGPoint === 'function') {
+        const ctm = svg.getScreenCTM();
+        if (ctm) {
+          const pt = svg.createSVGPoint();
+          pt.x = e.clientX;
+          pt.y = e.clientY;
+          ancla = pt.matrixTransform(ctm.inverse());
+        }
+      }
+      if (!ancla) {
+        setEscala(escalaNueva);
+        return;
+      }
+      const lx = (ancla.x - p.x) / escalaVieja;
+      const ly = (ancla.y - p.y) / escalaVieja;
+      const { ancho, alto } = limitesRef.current;
+      setEscala(escalaNueva);
+      setPan(
+        limitarPan(
+          { x: p.x + (escalaVieja - escalaNueva) * lx, y: p.y + (escalaVieja - escalaNueva) * ly },
+          escalaNueva,
+          ancho,
+          alto,
+        ),
+      );
+    };
+    svg.addEventListener('wheel', alRodar, { passive: false });
+    return () => svg.removeEventListener('wheel', alRodar);
+  }, []);
+
   const visibles = useMemo(
-    () => (soloTitulos ? posiciones.filter((p) => p.nivel <= 2) : posiciones),
-    [posiciones, soloTitulos],
+    () => posiciones.filter((p) => !nivelesOcultos.has(p.nivel)),
+    [posiciones, nivelesOcultos],
   );
+
+  /* Los niveles que EXISTEN en el documento. El preset «Solo H1–H2» apaga todo
+   * lo que no sea H1/H2, medido sobre lo que hay, no sobre una lista fija. */
+  const nivelesPresentes = useMemo(() => new Set(todas.map((p) => p.nivel)), [todas]);
+  const ocultosDeSoloTitulos = useMemo(
+    () => new Set([...nivelesPresentes].filter((nivel) => nivel > 2)),
+    [nivelesPresentes],
+  );
+  const soloTitulos = mismoConjunto(nivelesOcultos, ocultosDeSoloTitulos);
+
+  const alternarNivel = (nivel: number) =>
+    setNivelesOcultos((prev) => {
+      const next = new Set(prev);
+      if (next.has(nivel)) next.delete(nivel);
+      else next.add(nivel);
+      return next;
+    });
 
   if (raices.length === 0) {
     return (
@@ -259,24 +368,29 @@ export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
   const maxY = [...visibles, ...todas].reduce((m, p) => Math.max(m, p.y), 0);
   const ancho = maxX + ANCHO_NODO + MARGEN;
   const alto = maxY + ALTO_NODO + MARGEN;
+  limitesRef.current = { ancho, alto };
 
   const ajustar = () => {
     setEscala(1);
     setPan({ x: 0, y: 0 });
   };
 
-  const onWheel = (e: React.WheelEvent) => {
-    if (!e.ctrlKey) return;
-    e.preventDefault();
-    setEscala((v) => Math.min(3, Math.max(0.5, v - e.deltaY * 0.001)));
-  };
   const onPointerDown = (e: React.PointerEvent) => {
     if ((e.target as Element).closest('[data-nodo]')) return;
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     arrastreRef.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+    setArrastrandoLienzo(true);
   };
   const onPointerMove = (e: React.PointerEvent) => {
     if (!arrastreRef.current) return;
-    setPan({ x: e.clientX - arrastreRef.current.x, y: e.clientY - arrastreRef.current.y });
+    setPan(
+      limitarPan(
+        { x: e.clientX - arrastreRef.current.x, y: e.clientY - arrastreRef.current.y },
+        escala,
+        ancho,
+        alto,
+      ),
+    );
   };
   /* Cierra un arrastre de rama. El destino principal es el que resolvió la
    * última `pointermove` (coordenadas del lienzo, con la caja bajo el cursor);
@@ -285,6 +399,7 @@ export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
    * `reubicar=false` cancela (salir del lienzo) sin soltar nada. */
   const terminarArrastre = (e: React.PointerEvent, reubicar: boolean) => {
     arrastreRef.current = null;
+    setArrastrandoLienzo(false);
     const origen = draggingRef.current;
     if (origen === null) return;
     const objetivo =
@@ -303,7 +418,7 @@ export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
   /* El cursor, en coordenadas de las cajas: de la pantalla al lienzo pasando
    * por el `viewBox` y por el zoom. Sin eso, el fantasma y la detección de la
    * caja de destino caerían en otro lado. */
-  const puntoEnLienzo = (clientX: number, clientY: number): { x: number; y: number } | null => {
+  const puntoGlobal = (clientX: number, clientY: number): { x: number; y: number } | null => {
     const svg = svgRef.current;
     if (!svg || typeof svg.getScreenCTM !== 'function' || typeof svg.createSVGPoint !== 'function') return null;
     const ctm = svg.getScreenCTM();
@@ -311,7 +426,12 @@ export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
     const punto = svg.createSVGPoint();
     punto.x = clientX;
     punto.y = clientY;
-    const global = punto.matrixTransform(ctm.inverse());
+    return punto.matrixTransform(ctm.inverse());
+  };
+
+  const puntoEnLienzo = (clientX: number, clientY: number): { x: number; y: number } | null => {
+    const global = puntoGlobal(clientX, clientY);
+    if (!global) return null;
     return { x: (global.x - pan.x) / escala, y: (global.y - pan.y) / escala };
   };
 
@@ -328,24 +448,41 @@ export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
         <button
           type="button"
           aria-pressed={soloTitulos}
-          onClick={() => setSoloTitulos((v) => !v)}
+          onClick={() => setNivelesOcultos(soloTitulos ? new Set() : new Set(ocultosDeSoloTitulos))}
           style={estiloBoton(soloTitulos)}
         >
           Solo H1–H2
         </button>
-        <button type="button" aria-label="Alejar" title="Alejar" onClick={() => setEscala((v) => Math.max(0.5, v - 0.2))} style={estiloIconoBoton}>
+        <button type="button" aria-label="Alejar" title="Alejar" onClick={() => setEscala((v) => limitarEscala(v - 0.2))} style={estiloIconoBoton}>
           <ZoomOut size={15} strokeWidth="var(--icon-stroke)" aria-hidden />
         </button>
-        <button type="button" aria-label="Acercar" title="Acercar" onClick={() => setEscala((v) => Math.min(3, v + 0.2))} style={estiloIconoBoton}>
+        <button type="button" aria-label="Acercar" title="Acercar" onClick={() => setEscala((v) => limitarEscala(v + 0.2))} style={estiloIconoBoton}>
           <ZoomIn size={15} strokeWidth="var(--icon-stroke)" aria-hidden />
         </button>
         <button type="button" aria-label="Ajustar" title="Ajustar" onClick={ajustar} style={estiloBoton(escala !== 1 || pan.x !== 0 || pan.y !== 0)}>
           Ajustar
         </button>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-          <i className="leyenda lv1" aria-hidden /> H1
-          <i className="leyenda lv2" aria-hidden /> H2
-          <i className="leyenda lv3" aria-hidden /> H3
+        <span
+          role="group"
+          aria-label="Niveles visibles"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}
+        >
+          {[1, 2, 3].map((nivel) => {
+            const visible = !nivelesOcultos.has(nivel);
+            return (
+              <button
+                key={nivel}
+                type="button"
+                aria-pressed={visible}
+                aria-label={`Nivel ${nivel}`}
+                title={`${visible ? 'Ocultar' : 'Mostrar'} H${nivel}`}
+                onClick={() => alternarNivel(nivel)}
+                style={estiloBoton(visible)}
+              >
+                <i className={`leyenda lv${nivel}`} aria-hidden /> H{nivel}
+              </button>
+            );
+          })}
         </span>
       </div>
 
@@ -357,12 +494,12 @@ export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
         aria-label="Diagrama de estructura del documento"
         viewBox={`0 0 ${ancho} ${alto}`}
         width="100%"
-        style={{ display: 'block', width: '100%', height: 'auto', touchAction: 'none' }}
-        onWheel={onWheel}
+        style={{ display: 'block', width: '100%', height: 'auto', touchAction: 'none', cursor: arrastrandoLienzo ? 'grabbing' : 'grab' }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={(e) => terminarArrastre(e, true)}
         onPointerLeave={(e) => terminarArrastre(e, false)}
+        onPointerCancel={(e) => terminarArrastre(e, false)}
       >
         <g data-testid="mapa-zoom" transform={`translate(${pan.x} ${pan.y}) scale(${escala})`}>
           {insercion ? (
@@ -440,7 +577,7 @@ export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
                   cursor: esRaiz ? 'default' : onSelect ? 'pointer' : 'default',
                 }}
               >
-                <title>{`Sección: ${n.nodo.titulo}`}</title>
+                <title>{`Sección: ${(n.nodo.elementoId ? textosTitulo?.get(n.nodo.elementoId) : undefined) ?? n.nodo.titulo}`}</title>
                 <rect className="mapa-caja" x={n.x} y={n.y} width={ANCHO_NODO} height={ALTO_NODO} rx={8} />
                 <text className="mapa-etiqueta" x={n.x + 12} y={n.y + 24}>
                   {n.etiqueta}
@@ -486,6 +623,9 @@ export const MapaEstructura: React.FC<MapaEstructuraProps> = ({
 };
 
 const estiloBoton = (activo: boolean): React.CSSProperties => ({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 'var(--space-1)',
   fontFamily: 'var(--font-sans)',
   fontSize: 'var(--text-xs)',
   color: activo ? 'var(--color-accent)' : 'var(--color-text-secondary)',

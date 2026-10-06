@@ -29,6 +29,8 @@ export interface IndiceEstructuraProps {
   vocabulario?: VocabularioFases;
   onSelect?: (nodo: NodoJerarquia) => void;
   nodoSeleccionadoId?: string | null;
+  /** Título ya numerado por id de elemento, la misma fuente que el diagrama. */
+  textosTitulo?: ReadonlyMap<string, string>;
 }
 
 export const IndiceEstructura: React.FC<IndiceEstructuraProps> = ({
@@ -37,6 +39,7 @@ export const IndiceEstructura: React.FC<IndiceEstructuraProps> = ({
   vocabulario,
   onSelect,
   nodoSeleccionadoId,
+  textosTitulo,
 }) => {
   const [filtro, setFiltro] = useState<string>('todas');
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set());
@@ -195,6 +198,7 @@ export const IndiceEstructura: React.FC<IndiceEstructuraProps> = ({
                   profundidad={fila.profundidad}
                   onSelect={onSelect}
                   seleccionado={fila.nodo.id === nodoSeleccionadoId}
+                  titulo={fila.nodo.elementoId ? textosTitulo?.get(fila.nodo.elementoId) : undefined}
                 />
               </div>
             </div>

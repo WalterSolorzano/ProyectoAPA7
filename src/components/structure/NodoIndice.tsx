@@ -18,6 +18,8 @@ export interface NodoIndiceProps {
   profundidad?: number;
   onSelect?: (nodo: NodoJerarquia) => void;
   seleccionado?: boolean;
+  /** Título ya numerado por id de elemento; sin él se usa el crudo del autor. */
+  titulo?: string;
 }
 
 const estiloTitulo = (nivel: number): React.CSSProperties =>
@@ -33,10 +35,12 @@ export const NodoIndice: React.FC<NodoIndiceProps> = ({
   profundidad = 0,
   onSelect,
   seleccionado = false,
+  titulo,
 }) => {
   const balance = diagnostico?.balance ?? null;
   const motivo = diagnostico?.motivo ?? 'Rama desbalanceada';
   const problema = (diagnostico?.salud ?? 'completa') !== 'completa';
+  const texto = titulo ?? nodo.titulo;
 
   return (
     <div
@@ -83,9 +87,9 @@ export const NodoIndice: React.FC<NodoIndiceProps> = ({
             textOverflow: 'ellipsis',
             minWidth: 0,
           }}
-          title={nodo.titulo}
+          title={texto}
         >
-          {nodo.titulo}
+          {texto}
         </span>
       </div>
 
@@ -96,7 +100,7 @@ export const NodoIndice: React.FC<NodoIndiceProps> = ({
               palabras={nodo.palabras}
               escala={balance.mayor}
               laMasLarga={balance.laMasLarga}
-              nombre={nodo.titulo}
+              nombre={texto}
             />
           ) : null}
           {problema ? (

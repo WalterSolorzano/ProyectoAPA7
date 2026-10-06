@@ -40,6 +40,13 @@ describe('IndiceEstructura', () => {
     fireEvent.click(screen.getByRole('button', { name: /Alfa/i }));
     expect(screen.getByText('Sección interna')).toBeTruthy();
   });
+
+  it('muestra el título ya numerado cuando llega el mapa de textos', () => {
+    /* La misma fuente que el diagrama y la preview: el esquema no repite el
+     * título crudo del autor si la app ya lo re-numeró. */
+    render(<IndiceEstructura elementos={elementos} textosTitulo={new Map([['h1', 'I. Alfa']])} />);
+    expect(screen.getByText('I. Alfa')).toBeTruthy();
+  });
 });
 
 describe('IndicePrevisualizacion', () => {
@@ -65,5 +72,14 @@ describe('IndicePrevisualizacion', () => {
     render(<IndicePrevisualizacion raices={raices} profundidadMaxima={1} />);
     fireEvent.click(screen.getByRole('button', { name: /Alfa/i }));
     expect(screen.queryByText('Sección interna')).toBeNull();
+  });
+
+  it('al subir la profundidad despliega los H1, para que el control se vea', () => {
+    /* Un control de profundidad que no muestra nada hasta expandir a mano
+     * parece roto: al cambiarlo, los capítulos se abren solos. */
+    const { rerender } = render(<IndicePrevisualizacion raices={raices} profundidadMaxima={1} />);
+    expect(screen.queryByText('Sección interna')).toBeNull();
+    rerender(<IndicePrevisualizacion raices={raices} profundidadMaxima={2} />);
+    expect(screen.getByText('Sección interna')).toBeTruthy();
   });
 });

@@ -273,6 +273,7 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
           faseConocida={faseConocida}
           onSelect={abrir}
           nodoSeleccionadoId={elegido?.id ?? null}
+          textosTitulo={textosTitulo}
         />
       </div>
 
@@ -292,6 +293,7 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
             onSelect={abrir}
             nodoSeleccionadoId={elegido?.id ?? null}
             onReubicar={manejarReubicar}
+            textosTitulo={textosTitulo}
           />
         ) : (
           <IndicePrevisualizacion

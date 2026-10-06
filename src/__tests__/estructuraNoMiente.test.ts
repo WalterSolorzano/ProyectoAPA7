@@ -102,6 +102,17 @@ describe('la estructura no miente', () => {
     expect(nombreEnPantalla(sinNombre)).toBe(false);
   });
 
+  it('la rueda hace zoom sin exigir Ctrl', () => {
+    /* La rueda desnuda era un no-op: el mapa parecía no responder al zoom. La
+     * guarda lee el fuente porque en jsdom un listener nativo de `wheel` no se
+     * dispara; lo que se vigila es que el manejador exista y que no vuelva la
+     * condición de `ctrlKey` que apagaba el gesto. */
+    const mapa = FUENTES['../components/structure/MapaEstructura.tsx'];
+    expect(mapa, 'el mapa no está entre los fuentes').toBeTruthy();
+    expect(mapa, 'la rueda no está conectada').toMatch(/addEventListener\('wheel'/);
+    expect(mapa, 'la rueda vuelve a exigir Ctrl').not.toMatch(/e\.ctrlKey/);
+  });
+
   it('el mapa no usa ninguna librería de grafo', async () => {
     /* Si aparece una, es porque alguien decidió que dibujar cajas era difícil.
      * No lo es. */

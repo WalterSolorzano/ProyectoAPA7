@@ -9,6 +9,7 @@ import {
   destinoBajoCursor,
   esDestinoReubicable,
   interpolarPosiciones,
+  limitarEscala,
   lineaInsercion,
   type PosicionNodo,
 } from '../MapaEstructura';
@@ -114,6 +115,19 @@ describe('esDestinoReubicable', () => {
   it('acepta un destino fuera de la rama', () => {
     expect(esDestinoReubicable(bosque, 'hija', 'suelta')).toBe(true);
     expect(esDestinoReubicable(bosque, 'suelta', 'raiz')).toBe(true);
+  });
+});
+
+describe('limitarEscala', () => {
+  it('recorta por debajo y por encima del rango usable', () => {
+    expect(limitarEscala(0.1)).toBe(0.5);
+    expect(limitarEscala(9)).toBe(3);
+  });
+
+  it('deja pasar la escala que ya está dentro del rango', () => {
+    expect(limitarEscala(1.5)).toBe(1.5);
+    expect(limitarEscala(3)).toBe(3);
+    expect(limitarEscala(0.5)).toBe(0.5);
   });
 });
 

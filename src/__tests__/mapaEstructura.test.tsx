@@ -11,7 +11,7 @@
  * negocio.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render } from '@testing-library/react';
 import { fireEvent } from '@testing-library/react';
@@ -48,6 +48,7 @@ const el = (o: Partial<ElementModel> & { type: ElementModel['type']; text: strin
 
 const h1 = (t: string): ElementModel => el({ type: 'heading', heading_level: 1, text: t });
 const h2 = (t: string): ElementModel => el({ type: 'heading', heading_level: 2, text: t });
+const h3 = (t: string): ElementModel => el({ type: 'heading', heading_level: 3, text: t });
 const parrafo = (n: number): ElementModel =>
   el({ type: 'paragraph', text: Array.from({ length: n }, (_, i) => `w${i}`).join(' ') });
 
@@ -214,6 +215,90 @@ describe('el mapa dibujado', () => {
       fireEvent.pointerUp(metodologia);
     }
     expect(llamadas).toEqual([['e1', 'e3']]);
+  });
+});
+
+describe('títulos numerados, niveles y zoom', () => {
+  it('el nodo muestra el título ya numerado, y cae al crudo sin mapa', () => {
+    /* El diagrama tiene que decir lo MISMO que el índice: si el autor escribió
+     * «9.1 Estudio del trabajo», el mapa no lo repite tal cual cuando el índice
+     * ya lo re-numeró. La fuente es una sola. */
+    const textos = new Map([
+      ['e1', 'I. Introducción'],
+      ['e3', 'II. Metodología'],
+    ]);
+    const { container } = render(<MapaEstructura raices={ARBOL} textosTitulo={textos} />);
+    expect(container.textContent).toContain('I. Introducción');
+    expect(container.textContent).toContain('II. Metodología');
+    /* El H2 no está en el mapa: se ve el título del autor, sin inventar nada. */
+    expect(container.textContent).toContain('2.1 Instrumentos');
+  });
+
+  it('los chips de nivel prenden y apagan un nivel, sin tocar los demás', () => {
+    const { container, getByLabelText } = render(<MapaEstructura raices={ARBOL} />);
+    expect(container.querySelector('g[data-nodo="e1"]')).toBeTruthy();
+    expect(container.querySelector('g[data-nodo="e4"]')).toBeTruthy();
+
+    fireEvent.click(getByLabelText('Nivel 1'));
+    expect(container.querySelector('g[data-nodo="e1"]')).toBeNull();
+    expect(container.querySelector('g[data-nodo="e4"]')).toBeTruthy();
+
+    fireEvent.click(getByLabelText('Nivel 1'));
+    expect(container.querySelector('g[data-nodo="e1"]')).toBeTruthy();
+  });
+
+  it('«Solo H1–H2» apaga los H3 presentes y se vuelve a encender', () => {
+    const arbol = construirJerarquia([
+      h1('1. Uno'),
+      h2('1.1 Dos'),
+      h3('1.1.1 Tres'),
+      parrafo(20),
+    ]);
+    const { container, getByText } = render(<MapaEstructura raices={arbol} />);
+    const hayTres = () =>
+      [...container.querySelectorAll('g[data-nodo]')].some((g) =>
+        (g.querySelector('text')?.textContent ?? '').startsWith('1.1.1'),
+      );
+    expect(hayTres()).toBe(true);
+
+    fireEvent.click(getByText('Solo H1–H2'));
+    expect(hayTres()).toBe(false);
+
+    fireEvent.click(getByText('Solo H1–H2'));
+    expect(hayTres()).toBe(true);
+  });
+
+  it('los botones de zoom mueven la escala y «Ajustar» vuelve al origen', () => {
+    const { container, getByLabelText } = render(<MapaEstructura raices={ARBOL} />);
+    const zoom = () => container.querySelector('[data-testid="mapa-zoom"]')!.getAttribute('transform');
+    const antes = zoom();
+    fireEvent.click(getByLabelText('Acercar'));
+    expect(zoom()).not.toBe(antes);
+    expect(zoom()).toMatch(/scale\(1\.2/);
+    fireEvent.click(getByLabelText('Ajustar'));
+    expect(zoom()).toBe('translate(0 0) scale(1)');
+  });
+
+  it('el reflujo pide un frame al reordenar, para que el movimiento se vea', () => {
+    /* La animación es el contrato de la reubicación: la rama viaja y las
+     * aristas la siguen. Si no se pidiera un frame, el salto sería instantáneo
+     * y el usuario no vería a dónde fue. */
+    const original = (window as { matchMedia?: unknown }).matchMedia;
+    delete (window as { matchMedia?: unknown }).matchMedia;
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1);
+    const cancel = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+    try {
+      const a = construirJerarquia([h1('1. Uno'), parrafo(20), h1('2. Dos'), parrafo(20)]);
+      const b = construirJerarquia([h1('2. Dos'), parrafo(20), h1('1. Uno'), parrafo(20)]);
+      const { rerender } = render(<MapaEstructura raices={a} />);
+      raf.mockClear();
+      rerender(<MapaEstructura raices={b} />);
+      expect(raf).toHaveBeenCalled();
+    } finally {
+      raf.mockRestore();
+      cancel.mockRestore();
+      if (original !== undefined) (window as { matchMedia?: unknown }).matchMedia = original;
+    }
   });
 });
 
