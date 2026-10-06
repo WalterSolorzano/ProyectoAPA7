@@ -69,3 +69,21 @@ def test_archivar_y_purgar(tmp_path):
     pm._guardar_config(config)
     purga = purgar_papelera()
     assert purga['eliminados'] == 1
+
+
+def test_restaurar_version_la_devuelve_a_la_carpeta(tmp_path, monkeypatch):
+    from modules import proyecto_manager as pm
+
+    monkeypatch.setattr(pm, "CONFIG_FILE", tmp_path / "config.json")
+    raiz = tmp_path / "proyectos"
+    pm.configurar_raiz(str(raiz))
+    origen = tmp_path / "tesis.docx"
+    origen.write_bytes(b"v1")
+    creado = pm.crear_proyecto("Proyecto", str(origen))
+    pm.archivar_version(creado["proyecto_id"], "tesis.docx")
+
+    resultado = pm.restaurar_version(creado["proyecto_id"], "tesis.docx")
+
+    restaurado = Path(resultado["archivo_destino"])
+    assert restaurado.exists()
+    assert restaurado.read_bytes() == b"v1"

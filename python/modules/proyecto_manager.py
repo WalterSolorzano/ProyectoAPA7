@@ -101,6 +101,28 @@ def archivar_version(proyecto_id: str, archivo: str) -> dict:
     return {'movido_a': str(destino)}
 
 
+def restaurar_version(proyecto_id: str, archivo: str) -> dict:
+    """Devuelve una versión archivada a la carpeta del proyecto.
+
+    El archivo vive en `_Papelera/<proyecto_id>/<archivo>`; se copia de vuelta
+    (no se mueve) para no perder el respaldo si algo falla después.
+    """
+    raiz = _raiz()
+    config = _leer_config()
+    proyecto = config.get('proyectos', {}).get(proyecto_id)
+    if not raiz or not proyecto:
+        raise KeyError('Proyecto no encontrado')
+    origen = raiz / '_Papelera' / proyecto_id / archivo
+    if not origen.exists():
+        raise FileNotFoundError(f'{archivo} no está en la papelera')
+    destino = Path(proyecto['carpeta']) / archivo
+    shutil.copy2(str(origen), str(destino))
+    archivados = [a for a in config.get('archivados', []) if a.get('archivo') != str(origen)]
+    config['archivados'] = archivados
+    _guardar_config(config)
+    return {'archivo_destino': str(destino)}
+
+
 def purgar_papelera() -> dict:
     config = _leer_config()
     archivados = config.get('archivados', [])

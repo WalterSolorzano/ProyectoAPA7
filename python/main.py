@@ -346,6 +346,18 @@ async def endpoint_archivar_version(body: dict):
     except KeyError as e:
         raise HTTPException(404, str(e))
 
+
+@app.post("/api/proyectos-archivo/restaurar-version")
+async def proyectos_restaurar_version(body: dict) -> dict:
+    """Devuelve una versión archivada a la carpeta del proyecto."""
+    from modules import proyecto_manager
+    try:
+        return proyecto_manager.restaurar_version(body["proyecto_id"], body["archivo"])
+    except FileNotFoundError as e:
+        raise HTTPException(404, str(e))
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+
 @app.get("/api/proyectos-archivo/purgar-papelera")
 async def endpoint_purgar_papelera():
     return purgar_papelera()
