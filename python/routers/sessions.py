@@ -1,4 +1,4 @@
-﻿"""Sesiones, subida y elementos - endpoints extraidos de main.py (mejora #4 / E-02)."""
+"""Sesiones, subida y elementos - endpoints extraidos de main.py (mejora #4 / E-02)."""
 from __future__ import annotations
 
 import asyncio
@@ -23,7 +23,7 @@ from generation.templates import (
     TEMPLATE_TESINA,
     DocumentTemplate,
 )
-from models import APAFormat, DocumentModel, ElementModel, ElementType, PortadaData, WorkMode
+from models import APAFormat, DocumentModel, ElementModel, ElementType, PortadaData, ReferenciaModel, WorkMode
 from modules.doc_auditor import DocAuditResult, audit_document_structure
 from parsing.docx_parser import parse_docx_bytes
 from persistence.idempotency import check_idempotency, init_sqlite_db
@@ -36,6 +36,7 @@ from persistence.session_manager import (
 )
 from profiles import get_profile, list_profiles
 from pydantic import BaseModel
+
 
 router = APIRouter(tags=["sessions"])
 
@@ -821,22 +822,35 @@ async def update_element(req: UpdateElementRequest) -> DocumentModel:
     return doc
 
 
+class SortReferencesRequest(BaseModel):
+    references: Optional[List[ReferenciaModel]] = None
+
+
 @router.post("/api/references/sort/{session_id}")
-async def sort_references_endpoint(session_id: str) -> DocumentModel:
+async def sort_references_endpoint(
+    session_id: str,
+    req: Optional[SortReferencesRequest] = None,
+) -> DocumentModel:
     """Reordena la bibliografia por apellido APA 7 y persiste el orden.
 
-    No reescribe el .docx: la seccion exportada se genera desde
-    `doc.referencias` con la misma funcion (`format_apa_referencias_section`),
-    asi que este endpoint alinea el modelo con lo que se va a escribir.
+    Si el cliente envia las referencias actuales (`req.references`), se toman
+    esas para no pisar ni borrar referencias agregadas en la interfaz (DOI,
+    manuales o citas resueltas). Si no, usa las persistidas en `doc.referencias`.
     """
     from modules.referencias_module import sort_referencias_alphabetically
 
     doc: Optional[DocumentModel] = load_session_state(session_id, STORAGE_DIR)
     if not doc:
         raise HTTPException(status_code=404, detail="Sesion no encontrada.")
-    doc.referencias = sort_referencias_alphabetically(list(doc.referencias or []))
+    
+    lista_a_ordenar = (
+        req.references if (req is not None and req.references is not None)
+        else list(doc.referencias or [])
+    )
+    doc.referencias = sort_referencias_alphabetically(list(lista_a_ordenar))
     save_session_state(doc, STORAGE_DIR)
     return doc
+
 
 
 @router.get("/api/citation-style/{session_id}")

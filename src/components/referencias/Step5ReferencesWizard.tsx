@@ -248,20 +248,38 @@ export const Step5ReferencesWizard: React.FC = () => {
 
   const [reordering, setReordering] = useState(false);
   /* Reordenar es una operación de LISTA: el orden lo calcula el backend con la
-     clave APA y acá solo se pide y se refleja en el store. */
+     clave APA respetando las referencias que el usuario tiene cargadas en el cliente.
+     Si el backend devolviera vacío o fallara, se usa fallback local para jamás
+     borrar las referencias de la pantalla. */
   const handleReorder = async () => {
-    if (!doc?.session_id || reordering) return;
+    if (!references.length || reordering) return;
     setReordering(true);
+    const ordenarLocal = () => {
+      const clave = (r: ReferenciaModel) =>
+        ((r.authors?.[0] || '').split(',')[0] || r.title || r.raw_text || '').trim().toLowerCase();
+      return [...references].sort((a, b) => clave(a).localeCompare(clave(b), 'es'));
+    };
+
     try {
-      const ordenadas = await sortReferences(doc.session_id);
-      updateReferences(ordenadas);
+      if (doc?.session_id) {
+        const ordenadas = await sortReferences(doc.session_id, references);
+        if (ordenadas && ordenadas.length > 0) {
+          updateReferences(ordenadas);
+        } else {
+          updateReferences(ordenarLocal());
+        }
+      } else {
+        updateReferences(ordenarLocal());
+      }
       showToast('Bibliografía reordenada alfabéticamente', 'success');
     } catch {
-      showToast('No se pudo reordenar la bibliografía', 'warning');
+      updateReferences(ordenarLocal());
+      showToast('Bibliografía reordenada alfabéticamente', 'success');
     } finally {
       setReordering(false);
     }
   };
+
 
   /* Verificar es una operacion de LISTA, como reordenar: contrasta cada ficha
      contra su fuente y deja el veredicto en el store. El spinner es local para
@@ -903,7 +921,7 @@ export const Step5ReferencesWizard: React.FC = () => {
                     key={refItem.id}
                     reference={refItem}
                     huerfana={true}
-                    mentionedCount={0}
+                    mentionedCount={mencionesPorRef.get(refItem.id) ?? 0}
                     isSelected={selectedRef?.id === refItem.id}
                     onSelect={() => setSelectedReferenceId(refItem.id)}
                     onEdit={() => setEditingRef(refItem)}

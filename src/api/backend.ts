@@ -1,4 +1,4 @@
-﻿/* WordAPA7 — Backend API Client */
+/* WordAPA7 — Backend API Client */
 
 import {
   DocumentModel,
@@ -565,14 +565,23 @@ export async function validateCitations(
 }
 
 /** Reordena la bibliografía con la clave APA del backend (apellido sin tildes). */
-export async function sortReferences(sessionId: string): Promise<ReferenciaModel[]> {
-  const res = await fetchWithTrace(`${getApiBase()}/references/sort/${sessionId}`, {
+export async function sortReferences(
+  sessionId: string,
+  references?: readonly ReferenciaModel[],
+): Promise<ReferenciaModel[]> {
+  const init: RequestInit = {
     method: 'POST',
-  });
+  };
+  if (references !== undefined) {
+    init.headers = { 'Content-Type': 'application/json' };
+    init.body = JSON.stringify({ references });
+  }
+  const res = await fetchWithTrace(`${getApiBase()}/references/sort/${sessionId}`, init);
   if (!res.ok) throw new Error('Error al reordenar las referencias');
   const data = await res.json();
   return data.referencias || [];
 }
+
 
 export interface CitationStyleReport {
   mixed: boolean;

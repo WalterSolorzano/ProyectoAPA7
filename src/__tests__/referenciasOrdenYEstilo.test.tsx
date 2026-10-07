@@ -65,10 +65,20 @@ describe('reordenar la bibliografía', () => {
     sortReferences.mockResolvedValue(ordenadas);
     montar();
     fireEvent.click(screen.getByRole('button', { name: /reordenar alfabéticamente/i }));
-    await waitFor(() => expect(sortReferences).toHaveBeenCalledWith('s1'));
+    await waitFor(() => expect(sortReferences).toHaveBeenCalledWith('s1', [REF_A, REF_B]));
     expect(updateReferences).toHaveBeenCalledWith(ordenadas);
   });
+
+  it('no borra las referencias si el backend responde vacío o falla', async () => {
+    sortReferences.mockResolvedValue([]);
+    montar();
+    fireEvent.click(screen.getByRole('button', { name: /reordenar alfabéticamente/i }));
+    await waitFor(() => expect(sortReferences).toHaveBeenCalledWith('s1', [REF_A, REF_B]));
+    // Fallback local ordena [REF_B (Aguilar), REF_A (Zapata)] sin vaciar la lista
+    expect(updateReferences).toHaveBeenCalledWith([REF_B, REF_A]);
+  });
 });
+
 
 describe('aviso de estilo mezclado', () => {
   it('no aparece cuando todo es APA', async () => {

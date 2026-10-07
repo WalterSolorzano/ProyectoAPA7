@@ -61,3 +61,24 @@ def test_endpoint_sort_404_sin_sesion(monkeypatch):
     monkeypatch.setattr(router, "load_session_state", lambda sid, st: None)
     r = _client().post("/api/references/sort/nope")
     assert r.status_code == 404
+
+
+def test_endpoint_sort_usa_referencias_enviadas_por_el_cliente(monkeypatch):
+    doc = DocumentModel(session_id="s1")
+    # El backend tiene su lista desactualizada o vacía (caso típico de doc en blanco o refs añadidas en UI)
+    doc.referencias = [_ref("old", "Zapata, J.")]
+    _mk_session(monkeypatch, doc)
+    
+    # El cliente manda 3 referencias creadas en la interfaz
+    client_refs = [
+        {"id": "r1", "authors": ["Zapata, J."], "year": "2020", "title": "Obra Z"},
+        {"id": "r2", "authors": ["Aguilar, M."], "year": "2021", "title": "Obra A"},
+        {"id": "r3", "authors": ["Castro, F."], "year": "2019", "title": "Obra C"},
+    ]
+    r = _client().post("/api/references/sort/s1", json={"references": client_refs})
+    assert r.status_code == 200
+    ids_ordenados = [x["id"] for x in r.json()["referencias"]]
+    assert ids_ordenados == ["r2", "r3", "r1"]
+    # Verifica que además se persistan en doc.referencias del backend
+    assert [x.id for x in doc.referencias] == ["r2", "r3", "r1"]
+
