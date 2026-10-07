@@ -2,7 +2,7 @@
    Lista de párrafos agrupada por H2 + detalle. El "por qué" es dato REAL del
    detector (`findings[].detail`), no una frase genérica. Solo marcar. */
 import React, { useMemo, useState } from 'react';
-import { ArrowLeft, Copy, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Copy, RefreshCw, AlertTriangle, FileText } from 'lucide-react';
 import type { AIReviewParagraph } from '../../api/backend';
 import { BANDAS_IA, bandaDe, type FilaPerfilIA, type IndiceBanda, type ParrafoPerfilIA } from '../../lib/aiPerfil';
 import { fraseDeIA } from '../../lib/mascotaFrases';
@@ -120,21 +120,88 @@ export const AiSectionDetail: React.FC<AiSectionDetailProps> = ({ fila, paragrap
                 </div>
               </div>
 
-              <section style={{ marginTop: 'var(--space-5)' }}>
-                <div style={eyebrow}>Por qué lo marcamos</div>
-                <ul style={{ listStyle: 'none', margin: 'var(--space-2) 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+              {/* Hallazgos / Por qué lo marcamos */}
+              <section
+                style={{
+                  marginTop: 'var(--space-4)',
+                  padding: 'var(--space-3) var(--space-4)',
+                  background: 'var(--color-bg-surface-alt)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--color-border-subtle)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-2)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                    <AlertTriangle size={14} style={{ color: 'var(--color-engine-ia)' }} aria-hidden />
+                    <span style={{ ...eyebrow, marginBottom: 0 }}>Por qué lo marcamos</span>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 'var(--text-xs)',
+                      fontWeight: 700,
+                      color: 'var(--color-engine-ia)',
+                      background: 'var(--ia-nivel-1)',
+                      padding: '2px 8px',
+                      borderRadius: 'var(--radius-full)',
+                    }}
+                  >
+                    {detalle.findings.length} {detalle.findings.length === 1 ? 'indicador' : 'indicadores'}
+                  </span>
+                </div>
+                <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
                   {detalle.findings.map((f, i) => (
-                    <li key={`${f.phrase}-${i}`} style={{ display: 'flex', gap: 'var(--space-2)', fontSize: 'var(--text-sm)', lineHeight: 1.4, color: 'var(--color-text-primary)' }}>
-                      <span aria-hidden style={{ width: 7, height: 7, borderRadius: 'var(--radius-full)', background: 'var(--color-engine-ia)', marginTop: 6, flexShrink: 0 }} />
-                      <span>{f.detail}</span>
+                    <li
+                      key={`${f.phrase}-${i}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 'var(--space-2)',
+                        fontSize: 'var(--text-sm)',
+                        lineHeight: 1.45,
+                        color: 'var(--color-text-primary)',
+                        padding: 'var(--space-1) var(--space-2)',
+                        background: 'var(--color-bg-surface)',
+                        borderRadius: 'var(--radius-xs)',
+                        border: '1px solid var(--color-border-subtle)',
+                      }}
+                    >
+                      <span aria-hidden style={{ width: 6, height: 6, borderRadius: 'var(--radius-full)', background: 'var(--color-engine-ia)', marginTop: 6, flexShrink: 0 }} />
+                      <span style={{ flex: 1 }}>{f.detail}</span>
                     </li>
                   ))}
                 </ul>
               </section>
 
-              <section style={{ marginTop: 'var(--space-5)' }}>
-                <div style={eyebrow}>Texto original</div>
-                <p style={{ margin: 'var(--space-2) 0 0', fontSize: 'var(--text-base)', lineHeight: 1.7, color: 'var(--color-text-primary)' }}>
+              {/* Texto original en caja de lectura destacada */}
+              <section
+                style={{
+                  marginTop: 'var(--space-4)',
+                  padding: 'var(--space-4)',
+                  background: 'var(--paper-white)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--color-border-subtle)',
+                  borderLeft: '4px solid var(--color-engine-ia)',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-2)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                    <FileText size={14} style={{ color: 'var(--color-text-secondary)' }} aria-hidden />
+                    <span style={{ ...eyebrow, marginBottom: 0 }}>Texto original analizado</span>
+                  </div>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+                    Párrafo {parrafo.index + 1}
+                  </span>
+                </div>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 'var(--text-base)',
+                    lineHeight: 1.75,
+                    color: 'var(--paper-ink)',
+                    letterSpacing: '-0.01em',
+                  }}
+                >
                   {marcarFrases(detalle.text, detalle.findings.map((f) => f.phrase))}
                 </p>
               </section>
