@@ -132,7 +132,7 @@ export function fraseDeDetalleRevision(
   pos: number,
   total: number,
   titulo: string,
-  accion: 'accept' | 'mark' | 'view'
+  accion: 'accept' | 'mark' | 'view' | 'none' | 'resolveGhosts' | 'autoCaption'
 ): string {
   if (total <= 0) return '';
   const base = `Vas bien: ${pos + 1} de ${total}.`;

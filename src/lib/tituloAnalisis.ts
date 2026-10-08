@@ -50,14 +50,14 @@ const DELIMITADORES_CONTEXTO = [
 export function extraerTituloPrincipal(elements: readonly ElementModel[]): { texto: string; elementoId: string | null } {
   // 1. Elemento explícito de portada
   const portadaTitle = elements.find(
-    (e) => (e.is_cover || (e as any).is_cover_section) && (e.type === 'heading' || (e as any).portada_role === 'title')
+    (e) => ((e as any).is_cover || (e as any).is_cover_section) && (e.type === 'heading' || (e as any).portada_role === 'title')
   );
   if (portadaTitle && portadaTitle.text.trim()) {
     return { texto: portadaTitle.text.trim(), elementoId: portadaTitle.id };
   }
 
   // 2. Elemento marcado como cover
-  const primerCover = elements.find((e) => e.is_cover && e.text.trim());
+  const primerCover = elements.find((e) => (e as any).is_cover && e.text.trim());
   if (primerCover) {
     return { texto: primerCover.text.trim(), elementoId: primerCover.id };
   }
