@@ -7,7 +7,6 @@ import { BookOpen, Check, History, Loader2, MoreHorizontal, Sparkles } from 'luc
 import { useDocStore } from '../../store/useDocStore';
 import { ToolbarOverflowMenu } from './ToolbarOverflowMenu';
 import { SnapshotHistory } from './SnapshotHistory';
-import { WordLiveChip } from './WordLiveChip';
 import { AppBrandLogo } from '../shared/AppBrandLogo';
 
 type ChromeStyle = React.CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
@@ -232,9 +231,6 @@ export function UnifiedToolbar() {
       )}
 
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
-        {/* El estado de Word va primero: es el entorno donde vive el documento,
-            y el Copiloto queda pegado al cluster de menú/desborde de la derecha. */}
-        <WordLiveChip />
         <button
           type="button"
           onClick={() => setLiveChatOpen(!liveChatOpen)}

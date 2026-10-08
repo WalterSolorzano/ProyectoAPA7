@@ -2966,12 +2966,18 @@ async def ai_review_endpoint(session_id: str, request: Request) -> dict:
     score_sum = 0
     score_n = 0
 
+    from modules.phase_scope import build_phase_map
+    phase_by_id, _ = build_phase_map(doc_model.elements)
+
     # 1) Análisis de IA por párrafo
     for idx, e in enumerate(doc_model.elements):
         if e.type not in text_types:
             continue
         text = (e.text or e.original_text or "").strip()
         if not text or len(text) < 15:
+            continue
+        # Las referencias bibliográficas no son prosa y no deben evaluarse con el detector de IA
+        if phase_by_id.get(str(e.id)) == "referencias":
             continue
         risk = analyze_ai_risk(text)
         ai_score = int(round(risk.get("score", 0.0) * 100))

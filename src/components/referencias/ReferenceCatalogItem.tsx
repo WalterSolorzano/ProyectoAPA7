@@ -132,6 +132,9 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
               fontSize: '12.5px',
               fontWeight: 700,
               color: 'var(--color-text-primary)',
+              minWidth: 0,
+              flex: 1,
+              wordBreak: 'break-word',
             }}
           >
             {mainAuthor} ({yearText})
@@ -149,6 +152,8 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '3px',
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
               }}
             >
               <CheckCircle2 size={11} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
@@ -166,6 +171,8 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '3px',
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
               }}
             >
               <AlertTriangle size={11} strokeWidth="var(--icon-stroke)" aria-hidden="true" />
@@ -175,19 +182,21 @@ export const ReferenceCatalogItem: React.FC<ReferenceCatalogItemProps> = ({
         </div>
 
         {/* Título de la referencia */}
-        <div
-          style={{
-            fontSize: '12px',
-            color: 'var(--color-text-secondary)',
-            lineHeight: 1.35,
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-          }}
-        >
-          {reference.title || 'Sin título'}
-        </div>
+        {reference.title && !/^[\s.,;\]\[()]+$/.test(reference.title) ? (
+          <div
+            style={{
+              fontSize: '12px',
+              color: 'var(--color-text-secondary)',
+              lineHeight: 1.35,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {reference.title.replace(/^[\s.,;\]\[()]+|[\s.,;\]\[()]+$/g, '')}
+          </div>
+        ) : null}
 
         {/* Línea inferior: conteo de menciones y DOI */}
         <div

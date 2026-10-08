@@ -26,16 +26,16 @@ def _normalize_accent(text: str) -> str:
 
 # ── Patrones Regex para deteccion ──────────────────────────────────────────────
 
-# Cita parentetica: (Garcia, 2023) o (Garcia & Lopez, 2023, p. 45)
+# Cita parentetica: (Garcia, 2023) o (Garcia & Lopez, 2023, p. 45) o (Gutierrez Pulido, 2012)
 REGEX_CITATION_PARENTETICA = re.compile(
-    r"\(([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s*(?:y|&)\s*[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*"
+    r"\(([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*(?:\s*(?:y|&)\s*[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)*"
     r"(?:\s+et\s+al\.?)?\s*,\s*\d{4}[a-z]?"
     r"(?:,\s*(?:p[p]?\.|p[aá]g\.)\s*\d+(?:[–\-]\d+)?)?)\)",
 )
 
-# Cita narrativa: Garcia (2023) o Garcia et al. (2023)
+# Cita narrativa: Garcia (2023) o Garcia et al. (2023) o Gutierrez Pulido (2012)
 REGEX_CITATION_NARRATIVA = re.compile(
-    r"\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+(?:y|&)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?"
+    r"\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*(?:\s+(?:y|&)\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)?"
     r"(?:\s+et\s+al\.?)?)\s+\((\d{4}[a-z]?"
     r"(?:,\s*(?:p[p]?\.|p[aá]g\.)\s*\d+(?:[–\-]\d+)?)?)\)",
 )

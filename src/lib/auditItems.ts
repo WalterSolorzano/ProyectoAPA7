@@ -1,4 +1,4 @@
-﻿/* WordAPA7 — review: la lista de hallazgos, como función pura.
+/* WordAPA7 — review: la lista de hallazgos, como función pura.
    Vive FUERA del hook a propósito: `useReviewWorkbench` la usa para pintar el
    workbench y el rail la usa para CONTAR lo que le falta al usuario. Cuando las
    dos cosas eran la misma línea de un hook, el rail solo podía contar
@@ -378,9 +378,8 @@ export function collectAuditItems(
       // final, y la lista no tiene página. `null` antes que la página del
       // último elemento (que era la estimación que se reemplaza aquí).
       pageNumber: null,
-      // Los motores que no conocen la fase la declaran nula: son reglas
-      // generales y no pertenecen a ninguna (spec D2).
-      phase: null,
+      // Las referencias huérfanas pertenecen conceptualmente a la sección de Referencias.
+      phase: 'referencias',
       readOnly: false,
     });
   }

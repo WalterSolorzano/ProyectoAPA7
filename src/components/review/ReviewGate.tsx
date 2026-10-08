@@ -74,8 +74,26 @@ export const ReviewGate: React.FC<ReviewGateProps> = ({
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
-            <HumanMascot size={64} />
-            <p style={{ margin: 0, maxWidth: '20ch', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-md)', padding: 'var(--space-2) var(--space-3)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>{voz}</p>
+            <HumanMascot size={72} />
+            <p
+              role="note"
+              style={{
+                margin: 0,
+                maxWidth: '28ch',
+                background: 'var(--color-bg-surface)',
+                border: '1px solid var(--color-border-subtle)',
+                borderRadius: 'var(--radius-lg)',
+                padding: 'var(--space-3) var(--space-4)',
+                fontSize: 'var(--text-base)',
+                fontWeight: 600,
+                lineHeight: 1.35,
+                color: 'var(--color-text-primary)',
+                boxShadow: 'var(--shadow-sm, 0 2px 6px rgba(0,0,0,0.06))',
+                wordBreak: 'break-word',
+              }}
+            >
+              {voz}
+            </p>
           </div>
         </section>
 

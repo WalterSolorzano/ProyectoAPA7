@@ -343,3 +343,28 @@ class TestCitationOffsets:
         text = "(López, 2021)"
         cits = extract_citations_from_text(text, "elem_42")
         assert all(c.element_id == "elem_42" for c in cits)
+
+
+class TestExtractAllCitationsReferencesBoundary:
+    """Verifica que extract_all_citations no confunda la sección de referencias con citas."""
+
+    def test_extract_all_citations_stops_at_references(self):
+        from models import DocumentModel, ElementModel, ElementType
+        from parsing.citation_matcher import extract_all_citations
+
+        doc = DocumentModel(
+            id="doc_1",
+            name="tesis.docx",
+            elements=[
+                ElementModel(id="p1", type=ElementType.PARAGRAPH, text="Según García (2021) el modelo funciona."),
+                ElementModel(id="h_ref", type=ElementType.HEADING, heading_level=1, text="Referencias"),
+                ElementModel(id="p_ref", type=ElementType.PARAGRAPH, text="García, A. (2021). Análisis de metodologías."),
+                ElementModel(id="p_ref2", type=ElementType.PARAGRAPH, text="López, M. (2020). Teoría general."),
+            ],
+        )
+
+        cits = extract_all_citations(doc)
+        assert len(cits) == 1
+        assert cits[0].element_id == "p1"
+        assert cits[0].year == "2021"
+

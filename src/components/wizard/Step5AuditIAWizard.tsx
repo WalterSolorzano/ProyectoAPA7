@@ -10,6 +10,7 @@ import { ReviewGate } from '../review/ReviewGate';
 import { RevisionRoom } from '../review/RevisionRoom';
 import { RevisionDetail } from '../review/RevisionDetail';
 import { ObjetivosAnalyzer } from '../review/ObjetivosAnalyzer';
+import { TituloAnalyzer } from '../review/TituloAnalyzer';
 import { AiRoom } from '../review/AiRoom';
 import { AiSectionDetail } from '../review/AiSectionDetail';
 import { AiDocumentPreview } from '../review/AiDocumentPreview';
@@ -17,12 +18,12 @@ import { construirPerfilIA } from '../../lib/aiPerfil';
 import { reformulateText } from '../../api/backend';
 import '../../styles/revision.css';
 
-type Pantalla = 'gate' | 'rev-l0' | 'rev-l1' | 'rev-l2' | 'ai';
+type Pantalla = 'gate' | 'rev-l0' | 'rev-l1' | 'rev-l2' | 'rev-titulo' | 'ai';
 
 /** El foco con el que una sala abre su detalle: un motor y/o una fase. */
 type FocoRevision = { phase?: string; engine?: EngineId; motor?: EngineId };
 
-const PHASE_WRAP: React.CSSProperties = { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 };
+const PHASE_WRAP: React.CSSProperties = { display: 'flex', flexDirection: 'column', flex: 1, height: '100%', minHeight: 0, overflow: 'hidden' };
 
 export const Step5AuditIAWizard: React.FC = () => {
   const doc = useDocStore((s) => s.doc);
@@ -77,7 +78,7 @@ export const Step5AuditIAWizard: React.FC = () => {
     [elements, reviewResult, proofreadFindings, citationAuditResult, pageOf, dismissedFindingIds],
   );
 
-  const aiScore = reviewResult?.ai_indices?.score ?? 0;
+  const aiScore = reviewResult?.ai_indices?.score ?? reviewResult?.ai_avg_score ?? 0;
 
   const handleScan = async () => {
     setIsScanning(true);
@@ -173,6 +174,7 @@ export const Step5AuditIAWizard: React.FC = () => {
           elements={elements}
           onOpenDetail={(foco) => { setFoco(foco); setPantalla('rev-l1'); }}
           onOpenObjetivos={() => setPantalla('rev-l2')}
+          onOpenTitulo={() => setPantalla('rev-titulo')}
           onBack={volverAPuerta}
         />
       </div>
@@ -201,6 +203,25 @@ export const Step5AuditIAWizard: React.FC = () => {
             }
           }}
           onMark={(elementId) => handleMark({ element_id: elementId } as AuditItem)}
+          onBack={() => setPantalla('rev-l0')}
+        />
+      </div>
+    );
+  }
+
+  if (pantalla === 'rev-titulo') {
+    return (
+      <div className="revision-phase rev-screen" style={PHASE_WRAP}>
+        <TituloAnalyzer
+          elements={elements}
+          onApply={async (elementId, texto) => {
+            try {
+              await updateElementText(elementId, texto);
+              showToast('Título optimizado en el manuscrito', 'success');
+            } catch {
+              showToast('Error al actualizar el título', 'error');
+            }
+          }}
           onBack={() => setPantalla('rev-l0')}
         />
       </div>

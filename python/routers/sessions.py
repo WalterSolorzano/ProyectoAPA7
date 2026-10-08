@@ -87,8 +87,13 @@ def run_background_analysis(session_id: str, storage_dir: Path):
         para_indices = []
         para_shadings = []
         para_web_shadings = []
+        from modules.phase_scope import build_phase_map
+        _phase_by_id, _ = build_phase_map(doc.elements)
+
         for idx, elem in enumerate(doc.elements):
             if elem.text and len(elem.text.strip()) >= 15:
+                if _phase_by_id.get(str(elem.id)) == "referencias":
+                    continue
                 paras.append(elem.text)
                 para_indices.append(idx)
                 para_shadings.append(elem.has_shading_residue)

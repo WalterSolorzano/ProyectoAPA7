@@ -224,7 +224,7 @@ export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
         id="cover-field-departamento"
         style={{
           textAlign: 'center', fontSize: `${pt(PT_PORTADA_UNI.departamento)}px`, color: BLACK,
-          margin: `${px(1)}px 0 ${px(4.5)}px`,
+          margin: `${px(2)}px 0 ${px(8)}px`,
           wordBreak: 'break-word', overflowWrap: 'break-word', ...hl('departamento'),
         }}
       >
@@ -236,7 +236,7 @@ export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
         id="cover-field-title"
         style={{
           textAlign: 'center', fontSize: `${pt(PT_PORTADA_UNI.titulo)}px`, fontWeight: 900, color: BLACK,
-          margin: `0 0 ${px(4.5)}px`,
+          margin: `0 0 ${px(8)}px`,
           fontFamily: 'Montserrat, sans-serif',
           wordBreak: 'break-word', overflowWrap: 'break-word', ...hl('title'),
         }}
@@ -250,7 +250,7 @@ export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
           id="cover-field-course"
           style={{
             textAlign: 'center', fontSize: `${pt(PT_PORTADA_UNI.asignatura)}px`, color: BLACK,
-            margin: `0 0 ${px(6)}px`,
+            margin: `0 0 ${px(10)}px`,
             wordBreak: 'break-word', overflowWrap: 'break-word', ...hl('course'),
           }}
         >
@@ -262,49 +262,82 @@ export const UNICoverPreview: React.FC<{ hoja?: Hoja; anchoPx?: number }> = ({
       <p
         style={{
           textAlign: 'left', fontWeight: 700, fontSize: `${pt(PT_PORTADA_UNI.elaboradoPor)}px`,
-          color: BLACK, margin: `0 0 ${px(2)}px`,
+          color: BLACK, margin: `${px(14)}px 0 ${px(4)}px`,
           fontFamily: 'Montserrat, sans-serif',
         }}
       >
         Elaborado por
       </p>
 
-      {/* Autores en columnas con separadores verticales */}
+      {/* Autores en columnas con separadores verticales y filas alineadas */}
       <div style={{ display: 'flex', borderTop: '1px solid transparent', gap: px(1) }}>
-        {cols.map((col, ci) => (
-          <React.Fragment key={ci}>
-            <div style={{ ...cellStyle, width: px(colWidthsCm[ci] * 10), borderRight: ci < cols.length - 1 ? `1px solid ${BLACK}` : 'none' }}>
-              {col.map((a, ai) => (
-                <div key={ai} style={{ marginBottom: px(2.5), fontFamily: 'Montserrat, sans-serif' }}>
-                  <div
-                    style={{
-                      fontSize: `${pt(PT_PORTADA_UNI.autor)}px`,
-                      fontWeight: ci === cols.length - 1 && tutorName ? 700 : 400, color: BLACK,
-                      wordBreak: 'break-word', overflowWrap: 'break-word', lineHeight: 1.2,
-                    }}
-                  >
-                    {a.nombre}
+        {cols.map((col, ci) => {
+          const isTutorCol = ci === cols.length - 1 && !!tutorName;
+          return (
+            <React.Fragment key={ci}>
+              <div style={{ ...cellStyle, width: px(colWidthsCm[ci] * 10), borderRight: ci < cols.length - 1 ? `1px solid ${BLACK}` : 'none' }}>
+                {isTutorCol ? (
+                  <div style={{ fontFamily: 'Montserrat, sans-serif', display: 'flex', flexDirection: 'column', gap: px(3) }}>
+                    <div>
+                      <div style={{ fontSize: `${pt(PT_PORTADA_UNI.autor)}px`, fontWeight: 700, color: BLACK, lineHeight: 1.2 }}>
+                        Profesor:
+                      </div>
+                      <div style={{ fontSize: `${pt(PT_PORTADA_UNI.autor)}px`, fontWeight: 400, color: BLACK, lineHeight: 1.2, marginTop: px(0.5) }}>
+                        {tutorName}
+                      </div>
+                    </div>
+                    {grupo && (
+                      <div>
+                        <div style={{ fontSize: `${pt(PT_PORTADA_UNI.autor)}px`, fontWeight: 700, color: BLACK, lineHeight: 1.2 }}>
+                          Grupo:
+                        </div>
+                        <div style={{ fontSize: `${pt(PT_PORTADA_UNI.autor)}px`, fontWeight: 400, color: BLACK, lineHeight: 1.2, marginTop: px(0.5) }}>
+                          {grupo}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  {a.carnet && (
+                ) : (
+                  col.map((a, ai) => (
                     <div
+                      key={ai}
                       style={{
-                        fontSize: `${pt(PT_PORTADA_UNI.carnet)}px`,
-                        fontWeight: ci === cols.length - 1 && tutorName ? 700 : 400, color: BLACK,
-                        wordBreak: 'break-word', overflowWrap: 'break-word',
-                        marginTop: px(0.5), lineHeight: 1.2,
+                        minHeight: px(18),
+                        marginBottom: ai < col.length - 1 ? px(2.5) : 0,
+                        fontFamily: 'Montserrat, sans-serif',
                       }}
                     >
-                      {a.carnet.startsWith('Carnet:') || a.carnet.startsWith('Grupo:') ? a.carnet : `Carnet: ${a.carnet}`}
+                      <div
+                        style={{
+                          fontSize: `${pt(PT_PORTADA_UNI.autor)}px`,
+                          fontWeight: 400, color: BLACK,
+                          wordBreak: 'break-word', overflowWrap: 'break-word', lineHeight: 1.2,
+                        }}
+                      >
+                        {a.nombre}
+                      </div>
+                      {a.carnet && (
+                        <div
+                          style={{
+                            fontSize: `${pt(PT_PORTADA_UNI.carnet)}px`,
+                            fontWeight: 400, color: BLACK,
+                            wordBreak: 'break-word', overflowWrap: 'break-word',
+                            marginTop: px(0.5), lineHeight: 1.2,
+                          }}
+                        >
+                          {a.carnet.startsWith('Carnet:') ? a.carnet : `Carnet: ${a.carnet}`}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </React.Fragment>
-        ))}
+                  ))
+                )}
+              </div>
+            </React.Fragment>
+          );
+        })}
       </div>
 
-      <div style={{ flex: 1 }} />
+      <div style={{ flex: 1, minHeight: px(15) }} />
 
       {/* Fecha y lugar */}
       <p

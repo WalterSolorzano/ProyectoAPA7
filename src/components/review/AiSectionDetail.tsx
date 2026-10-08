@@ -19,7 +19,10 @@ export interface AiSectionDetailProps {
 }
 
 const FILTROS: { id: 'todos' | IndiceBanda; label: string }[] = [
-  { id: 'todos', label: 'Todos' }, { id: 3, label: 'Alto' }, { id: 2, label: 'Medio' }, { id: 1, label: 'Bajo' },
+  { id: 'todos', label: 'Todos' },
+  { id: 2, label: 'Alto' },
+  { id: 1, label: 'Medio' },
+  { id: 0, label: 'Bajo' },
 ];
 
 export const AiSectionDetail: React.FC<AiSectionDetailProps> = ({ fila, paragraphs, onBack, onMark, onReformular }) => {

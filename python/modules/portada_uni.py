@@ -641,19 +641,29 @@ def generate_uni_cover(
                     carnet = autor.get("carnet", "")
 
                     if is_tutor_col:
-                        _add_run_styled(p, nombre, bold=True, size_pt=PT_AUTOR, font=font_body)
+                        _add_run_styled(p, "Profesor:", bold=True, size_pt=PT_AUTOR, font=font_body)
+                        p_tutor = cell.add_paragraph()
+                        p_tutor.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                        _set_paragraph_spacing(p_tutor, before=0, after=4, line_spacing=1.1)
+                        _add_run_styled(p_tutor, nombre, bold=False, size_pt=PT_AUTOR, font=font_body)
                         if carnet:
                             p2 = cell.add_paragraph()
                             p2.alignment = WD_ALIGN_PARAGRAPH.LEFT
-                            _set_paragraph_spacing(p2, before=0, after=0, line_spacing=1.1)
-                            _add_run_styled(p2, f"Grupo: {carnet}", bold=True, size_pt=PT_CARNET, font=font_body)
+                            _set_paragraph_spacing(p2, before=2, after=0, line_spacing=1.1)
+                            _add_run_styled(p2, "Grupo:", bold=True, size_pt=PT_CARNET, font=font_body)
+                            p_grupo = cell.add_paragraph()
+                            p_grupo.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                            _set_paragraph_spacing(p_grupo, before=0, after=0, line_spacing=1.1)
+                            grupo_val = carnet.replace("Grupo:", "").strip()
+                            _add_run_styled(p_grupo, grupo_val, bold=False, size_pt=PT_CARNET, font=font_body)
                     else:
                         _add_run_styled(p, nombre, bold=False, size_pt=PT_AUTOR, font=font_body)
                         if carnet:
                             p2 = cell.add_paragraph()
                             p2.alignment = WD_ALIGN_PARAGRAPH.LEFT
                             _set_paragraph_spacing(p2, before=0, after=0, line_spacing=1.1)
-                            _add_run_styled(p2, carnet, bold=False, size_pt=PT_CARNET, font=font_body)
+                            carnet_val = carnet if carnet.startswith("Carnet:") else f"Carnet: {carnet}"
+                            _add_run_styled(p2, carnet_val, bold=False, size_pt=PT_CARNET, font=font_body)
 
         builder.insert_table(authors_table)
 

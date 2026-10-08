@@ -508,6 +508,7 @@ describe('T9 — el párrafo de la revisión se localize por elemento', () => {
       proofreadFindings: [repeticion(0), repeticion(9), repeticion(19)],
     }));
     expect(marcas.map((m) => m.start)).toEqual([0, 9, 19]);
+    expect(marcas.every((m) => m.kind === 'repeat')).toBe(true);
   });
 });
 

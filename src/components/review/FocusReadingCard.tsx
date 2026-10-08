@@ -218,15 +218,40 @@ export function FocusReadingCard({
       >
         {texto !== null ? (
           <ReadingText text={texto} source={source} />
+        ) : item?.subtype === 'figura' || item?.subtype === 'tabla' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', padding: 'var(--space-4) 0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--color-accent)' }}>
+              <Tags size={20} aria-hidden />
+              <span style={{ fontSize: 'var(--text-base)', fontWeight: 700 }}>
+                {item.summary || (item.subtype === 'figura' ? 'Figura sin rotular APA 7' : 'Tabla sin rotular APA 7')}
+              </span>
+            </div>
+            <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
+              {item.detail || 'Este elemento visual requiere rotulación reglamentaria según las normas APA 7 (número secuencial, título en cursiva y nota explicativa).'}
+            </p>
+            {item.suggestedText && (
+              <div
+                style={{
+                  marginTop: 'var(--space-2)',
+                  padding: 'var(--space-3) var(--space-4)',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--color-bg-surface-alt)',
+                  border: '1px solid var(--color-border-subtle)',
+                }}
+              >
+                <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-tertiary)', marginBottom: 4 }}>
+                  Sugerencia de rotulación:
+                </div>
+                <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', fontStyle: 'italic' }}>
+                  {item.suggestedText}
+                </div>
+              </div>
+            )}
+          </div>
         ) : (
           <p style={{ color: 'var(--color-text-tertiary)', fontSize: 'var(--text-sm)' }}>
             {item
               ? 'El texto de este hallazgo ya no está en el documento.'
-              /* Decía "elige uno en el panel de la derecha". El rack está a la
-                 derecha en ventana ancha, pero en angosta no hay rack: un texto
-                 que nombra una posición que puede no existir es un texto que
-                 miente, y aquí miente sobre lo que el usuario tiene delante. Se
-                 dice la ACCIÓN, que existe en los dos anchos. */
               : 'Sin hallazgo seleccionado. Pulsa “Siguiente hallazgo” para recorrer los hallazgos de a uno.'}
           </p>
         )}

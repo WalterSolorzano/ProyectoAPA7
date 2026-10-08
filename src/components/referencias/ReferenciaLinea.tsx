@@ -20,9 +20,14 @@ export const ReferenciaLinea: React.FC<ReferenciaLineaProps> = ({
 }) => {
   const Tag = as;
   const segments = referencia.apa_segments && referencia.apa_segments.length
-    ? referencia.apa_segments
+    ? referencia.apa_segments.map((s) => ({
+        ...s,
+        text: s.text.replace(/[\r\n]+/g, ' '),
+      }))
     : null;
-  const plano = (referencia.formatted_apa || referencia.raw_text || '').trim();
+  const plano = (referencia.formatted_apa || referencia.raw_text || '')
+    .replace(/[\r\n]+/g, ' ')
+    .trim();
   return (
     <Tag style={{ ...APA_ENTRADA, ...style }} {...rest}>
       {segments

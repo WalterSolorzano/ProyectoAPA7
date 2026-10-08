@@ -35,6 +35,8 @@ export interface LienzoEditorialActivoProps {
   prevParagraph?: string;
   nextParagraph?: string;
   aiSuggestion?: AISuggestionData;
+  aiLoading?: boolean;
+  aiError?: string;
   onRotate?: () => void;
   onReplaceImage?: () => void;
   onApplyCaption?: (caption: { title: string; note: string }) => void;
@@ -90,6 +92,8 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
   prevParagraph,
   nextParagraph,
   aiSuggestion,
+  aiLoading,
+  aiError,
   onRotate,
   onReplaceImage,
   onApplyCaption,
@@ -372,6 +376,8 @@ export const LienzoEditorialActivo: React.FC<LienzoEditorialActivoProps> = ({
               }
             : undefined
         }
+        cargando={aiLoading}
+        error={aiError}
         onGenerar={onGenerarSuggestion ?? (() => {})}
         onAplicar={
           onApplyCaption

@@ -20,6 +20,7 @@ import { fasePorElemento } from '../../lib/informeRevision';
 import { ReadingText } from './ReadingText';
 import { useMarkSourceBase, buildMarkSource } from '../../hooks/useMarkSource';
 import { MascotaFrase } from './MascotaFrase';
+import { fraseDeDetalleRevision } from '../../lib/mascotaFrases';
 
 /** La píldora de severidad del mockup («severidad media»): tono por nivel. */
 const SEVERIDAD_PILL: Record<Severity, { label: string; color: string; bg: string }> = {
@@ -93,14 +94,7 @@ export const RevisionDetail: React.FC<RevisionDetailProps> = ({ foco, onBack }) 
   const elActual = actual ? elements.find((e) => e.id === actual.element_id) : undefined;
   const severidad = actual ? SEVERIDAD_PILL[actual.severity] : null;
 
-  const frase = !visibles.length
-    ? ''
-    : `Vas bien: ${pos + 1} de ${visibles.length}.` +
-      (accion === 'accept'
-        ? ` Cierra ${titulo.toLowerCase()} de un golpe.`
-        : accion === 'mark'
-          ? ' El detector propone: marca lo que quieras revisar.'
-          : '');
+  const frase = fraseDeDetalleRevision(pos, visibles.length, titulo, accion);
 
   const copiar = (texto: string) => {
     const clip = (navigator as Navigator & { clipboard?: Clipboard }).clipboard;
@@ -134,7 +128,7 @@ export const RevisionDetail: React.FC<RevisionDetailProps> = ({ foco, onBack }) 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 'var(--space-3)' }}>
               <span style={eyebrow}>{phaseLabel(actual.phase)} · {actual.pageNumber ? `página ${actual.pageNumber}` : 'sin página'}</span>
             </div>
-            <p style={{ margin: 0, fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 'var(--text-lg)', lineHeight: 1.85, color: 'var(--color-text-primary)' }}>
+            <p style={{ margin: 0, fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 'var(--text-lg)', lineHeight: 1.85, color: 'var(--color-text-primary)', whiteSpace: 'pre-wrap' }}>
               <ReadingText text={actual.originalText || elActual?.text || ''} source={buildMarkSource(base, elActual)} />
             </p>
           </div>

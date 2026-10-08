@@ -107,6 +107,10 @@ export function useRailFlyout(onSelect?: (item: RailDestination) => void): RailF
     (next: RailDestination) => {
       cancelClose();
       onSelect?.(next);
+      if (next.showFlyout === false) {
+        setItem(null);
+        return;
+      }
       const hasDetails = Boolean(next.description || next.status || next.showOutline);
       if (hasDetails) {
         setItem(next);

@@ -15,4 +15,7 @@ export const APA_ENTRADA: React.CSSProperties = {
   margin: 0,
   paddingLeft: '0.5in',
   textIndent: '-0.5in',
+  textAlign: 'left',
+  lineHeight: 2,
+  wordBreak: 'break-word',
 };

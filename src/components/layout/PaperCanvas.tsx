@@ -1333,6 +1333,8 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
 
       {/* Renderizado de Páginas */}
       <div style={{
+        position: 'relative',
+        zIndex: 2,
         zoom: zoomLevel / 100,
         transition: 'zoom 0.15s ease',
         display: 'flex',
@@ -1397,6 +1399,13 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
           // ~135px y "bailaba" al activarse/desactivar comentarios).
           const pageCommentElems = pageElements.filter((e) => !dismissedCommentIds.includes(e.id) && (positiveMap.get(e.id) || getWhatsAppComment(e, commentCtx, 0) !== null));
 
+          // Detección de tabla apaisada/horizontal en la página actual
+          const hasLandscapeTable = pageElements.some(
+            (e) => e.type === 'table' && e.table_info?.orientation === 'landscape'
+          );
+          const currentPageW = hasLandscapeTable ? PAGE_H : PAGE_W;
+          const currentPageH = hasLandscapeTable ? PAGE_W : PAGE_H;
+
           // Virtualización segura de páginas cuando el documento es muy extenso (>12 páginas):
           // Solo renderiza el DOM completo para las páginas dentro del rango [activePageIndex - 4, activePageIndex + 4].
           // Las demás se renderizan como contenedores livianos para mantener fluida la UI sin perder cálculos ni auditorías.
@@ -1411,8 +1420,8 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                 <div
                   onClick={() => setActivePageIndex(pageIdx)}
                   style={{
-                    width: `${PAGE_W}px`,
-                    height: `${PAGE_H}px`,
+                    width: `${currentPageW}px`,
+                    height: `${currentPageH}px`,
                     backgroundColor: 'var(--paper-white)',
                     boxShadow: 'var(--shadow-lg)',
                     display: 'flex',
@@ -1439,9 +1448,9 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
               )}
               <div
                 style={{
-                  width: `${PAGE_W}px`,
+                  width: `${currentPageW}px`,
                   maxWidth: '100%',
-                  height: `${PAGE_H}px`,
+                  height: `${currentPageH}px`,
                   overflow: 'hidden',
                   backgroundColor: 'var(--paper-white)',
                   boxShadow: '0 8px 32px var(--scrim-overlay), 0 2px 8px var(--color-ink-a12)',
@@ -2490,11 +2499,17 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                 ))}
                               </div>
                             ) : (
-                              <div
+                               <div
                                 style={{
                                   order: 1,
-                                  margin: '0 auto',
-                                  width: '100%', maxWidth: '100%',
+                                  margin: (() => {
+                                    const align = elem.image_info?.alignment || 'center';
+                                    if (align === 'left') return '0 auto 0 0';
+                                    if (align === 'right') return '0 0 0 auto';
+                                    return '0 auto';
+                                  })(),
+                                  width: elem.image_info?.width_cm ? `${elem.image_info.width_cm * 37.8}px` : '100%',
+                                  maxWidth: '100%',
                                   height: (() => {
                                     const declarado = elem.image_info?.height_cm ? elem.image_info.height_cm * 37.8 : null;
                                     const alto = altoImagenAjustado(declarado, geom.contentH);
@@ -2506,8 +2521,19 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                   backgroundColor: 'var(--paper-bg)',
                                   border: selectedElementId === elem.id
                                     ? '2px solid var(--accent-primary)'
-                                    : '1px solid var(--paper-line)',
-                                  borderRadius: 'var(--radius-xs)',
+                                    : (elem.image_info?.border === 'strong'
+                                      ? '2px solid var(--paper-line-strong)'
+                                      : (elem.image_info?.border === 'subtle'
+                                        ? '1px solid var(--paper-line)'
+                                        : 'none')),
+                                  borderRadius: elem.image_info?.corner_radius === 'lg'
+                                    ? 'var(--radius-lg)'
+                                    : (elem.image_info?.corner_radius === 'md'
+                                      ? 'var(--radius-md)'
+                                      : (elem.image_info?.corner_radius === 'sm'
+                                        ? 'var(--radius-sm)'
+                                        : '0px')),
+                                  boxShadow: elem.image_info?.shadow ? '0 4px 12px rgba(0,0,0,0.1)' : 'none',
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
@@ -2515,7 +2541,15 @@ export const PaperCanvas: React.FC<{ onElementClick?: (elementId: string, rect: 
                                   position: 'relative',
                                   cursor: 'grab',
                                   touchAction: 'none',
-                                  transform: elem.image_info?.rotation ? `rotate(${elem.image_info.rotation}deg)` : undefined,
+                                  transform: (() => {
+                                    const rot = elem.image_info?.rotation || 0;
+                                    const fx = elem.image_info?.flip_h ? -1 : 1;
+                                    const fy = elem.image_info?.flip_v ? -1 : 1;
+                                    const parts: string[] = [];
+                                    if (rot) parts.push(`rotate(${rot}deg)`);
+                                    if (fx !== 1 || fy !== 1) parts.push(`scale(${fx}, ${fy})`);
+                                    return parts.length > 0 ? parts.join(' ') : undefined;
+                                  })(),
                                   transformOrigin: 'center center',
                                   boxSizing: 'border-box',
                                 }}

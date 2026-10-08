@@ -204,17 +204,17 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
   const [elegidoId, setElegidoId] = useState<string | null>(nodoInicial?.id ?? null);
   const [tab, setTab] = useState<'prosa' | 'herramientas'>('prosa');
   const [ampliado, setAmpliado] = useState(false);
-  const [cerrado, setCerrado] = useState(false);
   const [destino, setDestino] = useState<DestinoEstructura>('esquema');
   const [profundidad, setProfundidad] = useState<ProfundidadIndice>(3);
-
-  /* El ancho de la ventana manda. Por debajo del ancho cómodo el panel derecho
-   * se pliega solo: entre 900 y 1279px todavía hay lugar para el centro, pero
-   * no para reservarle 452px al panel; por debajo de 900 se plegaría de todos
-   * modos. El estado local (`cerrado`) sigue existiendo para que el usuario lo
-   * cierre a mano aunque haya lugar. */
   const anchoVentana = useWindowWidth();
-  const panelCerrado = cerrado || anchoVentana < ANCHO_ESTRUCTURA_COMPLETO;
+  const [cerradoManual, setCerradoManual] = useState<boolean | null>(null);
+
+  /* Si el usuario no ha interactuado explícitamente abriendo o cerrando, se
+   * pliega automáticamente si la pantalla es menor a ANCHO_ESTRUCTURA_COMPLETO.
+   * Si el usuario pulsa abrir o cerrar, su decisión manual prevalece. */
+  const panelCerrado = cerradoManual !== null
+    ? cerradoManual
+    : anchoVentana < ANCHO_ESTRUCTURA_COMPLETO;
 
   const hayIndice = (doc?.elements ?? []).some((e) => e.type === 'toc');
 
@@ -226,13 +226,13 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
   const abrir = useCallback((nodo: NodoJerarquia) => {
     setElegidoId(nodo.id);
     setTab('prosa');
-    setCerrado(false);
+    setCerradoManual(false);
   }, []);
 
   const abrirPorId = useCallback((id: string) => {
     setElegidoId(id);
     setTab('prosa');
-    setCerrado(false);
+    setCerradoManual(false);
   }, []);
 
   /**
@@ -250,7 +250,9 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
     [doc, reorderElements],
   );
 
-  const anchoPanel = ampliado ? 760 : 452;
+  const anchoEsquema = anchoVentana < 960 ? '240px' : '308px';
+  const anchoPanelDefecto = anchoVentana >= ANCHO_ESTRUCTURA_COMPLETO ? '452px' : 'minmax(280px, 380px)';
+  const anchoPanel = ampliado ? (anchoVentana >= ANCHO_ESTRUCTURA_COMPLETO ? '760px' : 'minmax(380px, 560px)') : anchoPanelDefecto;
 
   return (
     <div
@@ -258,8 +260,8 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
       style={{
         display: 'grid',
         gridTemplateColumns: panelCerrado
-          ? '56px 308px minmax(0, 1fr) 44px'
-          : `56px 308px minmax(0, 1fr) ${anchoPanel}px`,
+          ? `56px ${anchoEsquema} minmax(0, 1fr) 44px`
+          : `56px ${anchoEsquema} minmax(0, 1fr) ${anchoPanel}`,
         height: '100%',
         minHeight: 0,
         background: 'var(--color-bg-canvas)',
@@ -309,7 +311,7 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
 
       {panelCerrado ? (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 'var(--space-3)', background: 'var(--color-bg-surface)', borderLeft: '1px solid var(--color-border-subtle)' }}>
-          <button type="button" onClick={() => setCerrado(false)} title="Mostrar panel" style={estiloIcono}>
+          <button type="button" onClick={() => setCerradoManual(false)} title="Mostrar panel" style={estiloIcono}>
             <BookOpen size={16} strokeWidth="var(--icon-stroke)" aria-hidden />
           </button>
         </div>
@@ -372,7 +374,7 @@ export const EscritorioEstructura: React.FC<EscritorioEstructuraProps> = ({ nodo
                 <Maximize2 size={15} strokeWidth="var(--icon-stroke)" aria-hidden />
               )}
             </button>
-            <button type="button" onClick={() => setCerrado(true)} title="Cerrar" style={estiloIcono}>
+            <button type="button" onClick={() => setCerradoManual(true)} title="Cerrar" style={estiloIcono}>
               <X size={15} strokeWidth="var(--icon-stroke)" aria-hidden />
             </button>
           </div>

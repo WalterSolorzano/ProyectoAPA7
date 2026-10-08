@@ -298,7 +298,7 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
       aria-label="Diseños de portada"
       tabIndex={0}
       onKeyDown={alTeclado}
-      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', width: '100%', alignItems: 'center', flex: 1, minHeight: 0, justifyContent: 'center' }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', width: '100%', alignItems: 'center', flex: 1, minHeight: 0, justifyContent: 'space-between', padding: 'var(--space-2) 0' }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-4)', width: '100%', flexWrap: 'wrap' }}>
         {/* Mascota editorial con mensaje contextual */}
@@ -382,8 +382,8 @@ export const CarruselPortada: React.FC<CarruselPortadaProps> = ({
             justifyContent: 'center',
             position: 'relative',
             overflowX: reducido ? 'auto' : 'hidden',
-            overflowY: 'hidden',
-            padding: 'var(--space-4) 0',
+            overflowY: 'visible',
+            padding: 'var(--space-2) 0',
             scrollbarWidth: 'thin',
             /* El arrastre es horizontal; el scroll vertical de la pantalla
                sigue siendo del navegador. */

@@ -33,7 +33,11 @@ _STOPWORDS_SIGLA = {"de", "del", "la", "el", "los", "las", "y", "e", "o", "u", "
 # así que la primera se perdía por el `;` y la segunda por no ir tras el `(`.
 # Y una cita a media frase —"(como recomienda la metodología; Hirano, 1995)"—
 # no empieza tras el `(`, así que también se escapaba.
-_AUTOR_APA = r"[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s*(?:y|&)\s*[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*(?:\s+et\s+al\.?)?"
+_AUTOR_APA = (
+    r"[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*"
+    r"(?:\s*(?:y|&)\s*[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)*"
+    r"(?:\s+et\s+al\.?)?"
+)
 REGEX_CITA_ANTES_DE_PUNTO_Y_COMA = re.compile(
     r"\(\s*(" + _AUTOR_APA + r")\s*,\s*(\d{4}[a-z]?)\s*;"
 )

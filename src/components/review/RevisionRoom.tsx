@@ -22,21 +22,26 @@ const NIVEL_EXIGIDO = 4;
 /** El mockup muestra los niveles con coma decimal. */
 const nivelDe = (calificacion: number): string => (calificacion / 10).toFixed(1).replace('.', ',');
 
+import { extraerTituloPrincipal, analizarTitulo } from '../../lib/tituloAnalisis';
+
 export interface RevisionRoomProps {
   items: AuditItem[];
   elements: readonly ElementModel[];
   onOpenDetail: (foco: { motor?: EngineId; phase?: string }) => void;
   onOpenObjetivos: () => void;
+  onOpenTitulo: () => void;
   onBack: () => void;
 }
 
-export const RevisionRoom: React.FC<RevisionRoomProps> = ({ items, elements, onOpenDetail, onOpenObjetivos, onBack }) => {
+export const RevisionRoom: React.FC<RevisionRoomProps> = ({ items, elements, onOpenDetail, onOpenObjetivos, onOpenTitulo, onBack }) => {
   const revision = useMemo(() => items.filter((it) => it.category !== 'ai'), [items]);
   const parrafos = useMemo(() => contarParrafos(elements), [elements]);
   const calificacion = cumplimiento(revision.length, parrafos);
   const motores = useMemo(() => resumenMotores(revision), [revision]);
   const fases = useMemo(() => calificacionPorFase(revision, elements), [revision, elements]);
   const objetivos = useMemo(() => resumenObjetivos(elements), [elements]);
+  const tituloExtraido = useMemo(() => extraerTituloPrincipal(elements), [elements]);
+  const analisisTitulo = useMemo(() => analizarTitulo(tituloExtraido.texto, tituloExtraido.elementoId), [tituloExtraido]);
   const porFase = useMemo(() => new Map(fases.map((f) => [f.phase, f])), [fases]);
   const objList = useMemo(
     () => (objetivos.general ? [objetivos.general, ...objetivos.especificos] : objetivos.especificos),
@@ -89,6 +94,38 @@ export const RevisionRoom: React.FC<RevisionRoomProps> = ({ items, elements, onO
               <span aria-hidden style={{ color: 'var(--color-text-tertiary)', textAlign: 'right' }}>›</span>
             </button>
           ))}
+        </section>
+
+        <section style={{ padding: 'var(--space-5)', borderBottom: '1px solid var(--color-border-subtle)' }}>
+          <div style={eyebrow}>Título de investigación · analizador APA 7</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '230px minmax(0,1fr)', gap: 'var(--space-5)', border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-4)' }}>
+            <div style={{ borderRight: '1px solid var(--color-border-subtle)', paddingRight: 'var(--space-4)' }}>
+              <div style={{ fontSize: 'clamp(24px, 4vw, 34px)', fontWeight: 800, lineHeight: 1, color: analisisTitulo.puntaje >= 85 ? 'var(--color-success)' : analisisTitulo.puntaje >= 60 ? 'var(--color-warning)' : 'var(--color-danger)' }}>
+                {analisisTitulo.puntaje}<small style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)' }}>%</small>
+              </div>
+              <span style={{ display: 'inline-block', marginTop: 'var(--space-2)', padding: '2px 8px', borderRadius: 'var(--radius-full)', border: '1px solid var(--color-border-subtle)', background: 'var(--color-bg-surface-alt)', color: 'var(--color-text-primary)', fontSize: 'var(--text-xs)', fontWeight: 700 }}>
+                {analisisTitulo.palabrasCount} palabras
+              </span>
+              <div style={{ marginTop: 'var(--space-3)', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
+                {analisisTitulo.criterios.filter((c) => c.cumple).length} de {analisisTitulo.criterios.length} criterios superados
+              </div>
+              <button type="button" onClick={onOpenTitulo} style={{ ...primario, marginTop: 'var(--space-4)' }}>
+                Analizar título <span aria-hidden>›</span>
+              </button>
+            </div>
+            <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', textTransform: 'uppercase', fontWeight: 700 }}>
+                Texto detectado
+              </div>
+              <div style={{ marginTop: '4px', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)', fontFamily: 'serif', background: 'var(--color-bg-surface-alt)', padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-subtle)' }}>
+                {analisisTitulo.titulo ? `“${analisisTitulo.titulo}”` : '(Sin título detectado)'}
+              </div>
+              <div style={{ marginTop: '6px', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
+                {analisisTitulo.veredicto}
+              </div>
+            </div>
+          </div>
+          <div style={lawNote}>El título se evalúa bajo APA 7: límite de palabras (≤15), mayúsculas iniciales, sin punto final y delimitación temática.</div>
         </section>
 
         <section style={{ padding: 'var(--space-5)', borderBottom: '1px solid var(--color-border-subtle)' }}>

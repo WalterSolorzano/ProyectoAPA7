@@ -284,6 +284,26 @@ describe('el estado de la fila del catálogo', () => {
     abrirPendientes();
     expect(fila(container).textContent).toMatch(/1 mención/);
   });
+
+  it('no cuenta como mención los párrafos que están en la sección de referencias/bibliografía', () => {
+    const docConBibliografia = {
+      id: 'd2',
+      name: 'tesis.docx',
+      elements: [
+        { id: 'p1', type: 'paragraph', text: 'En este capítulo se analiza la propuesta.' },
+        { id: 'h_ref', type: 'heading', heading_level: 1, text: 'Referencias' },
+        { id: 'p_biblio', type: 'paragraph', text: 'Garcia, A. (2021). Análisis de metodologías. Revista X.' },
+      ],
+    };
+    const { container } = montar(
+      [pendiente()], 'rp',
+      { ghost_citations: [], orphan_references: [] },
+      docConBibliografia,
+    );
+    abrirPendientes();
+    // Debe mostrar 0 menciones porque el único texto con Garcia está en la sección de referencias
+    expect(fila(container).textContent).toMatch(/0 menciones/);
+  });
 });
 
 /* ── La mascota: la cara sale del estado de la fase ────────────────────────── */

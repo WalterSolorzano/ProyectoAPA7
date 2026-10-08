@@ -33,11 +33,14 @@ export const TallerFigurasView: React.FC = () => {
   const updateElementTable = useDocStore((s) => s.updateElementTable);
   const aplicarImagenAMuchas = useDocStore((s) => s.aplicarImagenAMuchas);
   const replaceImage = useDocStore((s) => s.replaceImage);
+  const showToast = useDocStore((s) => s.showToast);
 
   const [tipoActivo, setTipoActivo] = useState<TipoFigura>('image');
   const [indiceActivo, setIndiceActivo] = useState<number | null>(null);
   const [idActivo, setIdActivo] = useState<string | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<Record<string, AISuggestionData>>({});
+  const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
+  const [aiErrors, setAiErrors] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const subfigInputRef = useRef<HTMLInputElement>(null);
   // Slot (b, c, d...) que se llenará con el próximo archivo importado.
@@ -264,22 +267,51 @@ export const TallerFigurasView: React.FC = () => {
   const handleRegenerateSuggestion = useCallback(async () => {
     if (!doc?.session_id || !elementoActual) return;
     if (elementoActual.type !== 'image' && elementoActual.type !== 'table') return;
+
+    const elId = elementoActual.id;
+    setAiLoading((prev) => ({ ...prev, [elId]: true }));
+    setAiErrors((prev) => ({ ...prev, [elId]: '' }));
+
     try {
+      // Si el párrafo anterior inmediato está vacío, construir contexto con los elementos circundantes
+      let ctxText = parrafoActual;
+      if (!ctxText && doc.elements) {
+        const idx = doc.elements.findIndex((e) => e.id === elId);
+        if (idx !== -1) {
+          const partes: string[] = [];
+          for (let i = Math.max(0, idx - 2); i < Math.min(doc.elements.length, idx + 3); i++) {
+            if (i === idx) continue;
+            const t = (doc.elements[i].text || '').trim();
+            if (t) partes.push(t);
+          }
+          ctxText = partes.join('\n');
+        }
+      }
+
       const texto = await suggestCaption(
         doc.session_id,
-        elementoActual.id,
-        parrafoActual,
+        elId,
+        ctxText || 'Figura o tabla académica del documento',
         apiKey ?? undefined
       );
-      if (!texto) return;
+
+      if (!texto) {
+        throw new Error('El modelo no devolvió una sugerencia válida');
+      }
+
       setAiSuggestions((prev) => ({
         ...prev,
-        [elementoActual.id]: { suggestedTitle: texto, suggestedNote: '' },
+        [elId]: { suggestedTitle: texto, suggestedNote: '' },
       }));
-    } catch {
-      // La sugerencia es oportunista: un fallo de red no rompe el taller.
+      showToast('Leyenda generada con éxito', 'success');
+    } catch (err: any) {
+      const msg = err?.message || 'Error al generar leyenda con IA';
+      setAiErrors((prev) => ({ ...prev, [elId]: msg }));
+      showToast(msg, 'error');
+    } finally {
+      setAiLoading((prev) => ({ ...prev, [elId]: false }));
     }
-  }, [doc?.session_id, elementoActual, parrafoActual, apiKey]);
+  }, [doc, elementoActual, parrafoActual, apiKey, showToast]);
 
   // Edición de una celda de tabla: el patch va directo al elemento tabla.
   const handleEditarCeldaTabla = useCallback(
@@ -319,6 +351,18 @@ export const TallerFigurasView: React.FC = () => {
     });
   }, [elementoActual, todosContextos, aplicarImagenAMuchas]);
 
+  // Aplicar estilo o configuración a todas las tablas
+  const handleApplyTableToAll = useCallback(
+    async (patch: ActivoPatch) => {
+      const tableIds = todosContextos.filter((c) => c.tipo === 'table').map((c) => c.id);
+      if (tableIds.length === 0) return;
+      for (const id of tableIds) {
+        updateElementTable(id, patch);
+      }
+    },
+    [todosContextos, updateElementTable]
+  );
+
   const handleDragGaleria = useCallback((dx: number) => {
     setGaleriaAncho((w) => clampAncho(w + dx, GALERIA_MIN, GALERIA_MAX));
   }, []);
@@ -339,8 +383,10 @@ export const TallerFigurasView: React.FC = () => {
     <InspectorActivoTabs
       elem={elementoActual}
       totalFiguras={conteos.image}
+      totalTablas={conteos.table}
       onUpdate={handleUpdateActivo}
       onApplyToAll={handleApplyToAll}
+      onApplyTableToAll={handleApplyTableToAll}
     />
   ) : (
     <aside
@@ -416,6 +462,8 @@ export const TallerFigurasView: React.FC = () => {
             prevParagraph={contextoActual.parrafoAnterior ?? undefined}
             nextParagraph={contextoActual.parrafoSiguiente ?? undefined}
             aiSuggestion={aiSuggestions[elementoActual.id]}
+            aiLoading={Boolean(aiLoading[elementoActual.id])}
+            aiError={aiErrors[elementoActual.id]}
             onRotate={esTablaActual ? undefined : handleRotate}
             onReplaceImage={esTablaActual ? undefined : handleReplaceImageClick}
             onApplyCaption={handleApplyCaption}

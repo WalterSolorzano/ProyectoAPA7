@@ -462,6 +462,8 @@ def format_heading_paragraph(p, level: int, text: str, rules: APARuleSet, preser
     p.paragraph_format.space_after = Pt(rules.space_after_pt)
     p.paragraph_format.keep_with_next = True
     p.paragraph_format.widow_control = True
+    if level == 1:
+        p.paragraph_format.page_break_before = True
 
     if preserve_text:
         for r in p.runs:
@@ -590,4 +592,4 @@ def normalize_global_body_spacing(doc: docx.Document, rules: APARuleSet, cover_p
             if all_runs_bold and p.runs:
                 for run in p.runs:
                     if run.bold is True:
-                        run.bold = None  # Heredar del estilo
+                        run.bold = False  # Apagar negrita forzada explícitamente

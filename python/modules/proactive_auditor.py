@@ -1,4 +1,4 @@
-﻿"""Revisor proactivo de escritura (capa local, siempre disponible).
+"""Revisor proactivo de escritura (capa local, siempre disponible).
 
 Detecta sin red y sin API key:
 - primera persona con posición exacta (nunca 'me'/'mi' sueltos)
@@ -103,16 +103,22 @@ def _audit_repeticion(eid: str, text: str) -> List[Dict[str, Any]]:
                                    f'La palabra o marca "{orig_word}" se repite {c} veces en este párrafo. Considera usar pronombres o variaciones.'))
                 break
     # Inicios de oración idénticos
-    sents = [s.strip() for s in re.split(r"[.!?]+\s", text) if s.strip()]
-    if len(sents) >= 3:
-        starts: Dict[str, int] = {}
-        for s in sents:
-            first = " ".join(s.split()[:1]).lower()
-            starts[first] = starts.get(first, 0) + 1
-        for first, c in starts.items():
+    # Encontrar cada oración con su offset inicial exacto en el texto del párrafo
+    sent_matches = list(re.finditer(r'(?:^|[.!?]+\s+)(["\'«»¿¡]*\b\w+\b)', text))
+    if len(sent_matches) >= 3:
+        starts: Dict[str, List[tuple[int, int, str]]] = {}
+        for m in sent_matches:
+            w_start, w_end = m.span(1)
+            raw_w = m.group(1)
+            first = raw_w.lower()
+            starts.setdefault(first, []).append((w_start, w_end, raw_w))
+
+        for first, occs in starts.items():
+            c = len(occs)
             if c >= 3:
-                out.append(_mk(eid, text, 0, min(len(first), 30), "repeticion", "info",
-                               f'{c} oraciones empiezan con "{first}" — varía la apertura'))
+                for w_start, w_end, orig_w in occs:
+                    out.append(_mk(eid, text, w_start, w_end, "repeticion", "info",
+                                   f'{c} oraciones empiezan con "{orig_w}" — varía la apertura'))
                 break
     return out
 
@@ -487,7 +493,7 @@ def audit_elements(elements: List[Any]) -> List[Dict[str, Any]]:
                                 f'Palabra duplicada: "{m.group(1)}"'))
         for m in _DOUBLE_SPACE.finditer(text):
             findings.append(_mk(eid, text, m.start(1), m.end(1), "pegado", "info",
-                                "Doble espacio"))
+                                "Doble espacio", suggestion=" "))
 
         # -- ortografía cerrada
         for m in _TYPO_RE.finditer(text):
@@ -504,17 +510,22 @@ def audit_elements(elements: List[Any]) -> List[Dict[str, Any]]:
         # viene del H1 que contiene el elemento, nunca de su texto.
         findings.extend(phase_findings(phase, eid, text, mk=_mk))
 
-        # -- Reglas globales: corren en TODO el documento, sin importar la
-        # fase. Van despues de las de fase y no saben cual es: si lo supieran,
-        # serian de fase.
-        findings.extend(global_findings(eid, text, global_ctx, mk=_mk))
+        # En la fase de referencias / bibliografía, las entradas bibliográficas
+        # tienen formato específico (autores, años, títulos, citas). Las reglas
+        # globales de prosa narrativa (g71 cifra sin cita, g74 verbatim sin comillas,
+        # etc.) o análisis de frases no aplican a entradas bibliográficas.
+        if phase != "referencias":
+            # -- Reglas globales: corren en TODO el documento, sin importar la
+            # fase. Van despues de las de fase y no saben cual es: si lo supieran,
+            # serian de fase.
+            findings.extend(global_findings(eid, text, global_ctx, mk=_mk))
 
-        # -- B1 repetición / B2 incompleta / B4 persona / B5 ambigüedad
-        findings.extend(_audit_repeticion(eid, text))
-        findings.extend(_audit_incompleta(eid, text))
-        findings.extend(_audit_persona(eid, text))
-        findings.extend(_audit_ambigua(eid, text))
-        findings.extend(_audit_spacy_and_spellchecker(eid, text))
+            # -- B1 repetición / B2 incompleta / B4 persona / B5 ambigüedad
+            findings.extend(_audit_repeticion(eid, text))
+            findings.extend(_audit_incompleta(eid, text))
+            findings.extend(_audit_persona(eid, text))
+            findings.extend(_audit_ambigua(eid, text))
+            findings.extend(_audit_spacy_and_spellchecker(eid, text))
 
     # Pasada de portada: los elementos de portada NO son prosa, asi que el
     # filtro de arriba los excluye y no llegan al bucle principal. Pero la
@@ -541,6 +552,41 @@ def audit_elements(elements: List[Any]) -> List[Dict[str, Any]]:
         findings.extend(phase_findings(
             phase_by_id.get(eid, PORTADA_KEY), eid, texto, mk=_mk,
             is_cover_title=es_titulo))
+
+    # Pasada de títulos / encabezados (H1, H2, H3...):
+    # Se auditan para ortografía cerrada y punto final indebido (APA 7: los títulos no llevan punto final).
+    for e in elements:
+        etype_ = str(getattr(getattr(e, "type", None), "value", getattr(e, "type", "")))
+        if etype_ not in ("heading", "title"):
+            continue
+        # La portada ya se mide arriba con sus reglas especiales
+        if getattr(e, "is_cover_section", False) or etype_ == "portada_block":
+            continue
+        eid = str(getattr(e, "id", ""))
+        texto = getattr(e, "text", "") or ""
+        if not texto.strip():
+            continue
+
+        # Ortografía cerrada en títulos
+        for m in _TYPO_RE.finditer(texto):
+            correct = _TYPOS[m.group(1).lower()]
+            findings.append(_mk(eid, texto, m.start(), m.end(), "ortografia", "error",
+                                f'Ortografía en título: "{m.group(0)}" → "{correct}"',
+                                suggestion=correct))
+
+        # Doble espacio / espacio antes de puntuación
+        for m in _DOUBLE_SPACE.finditer(texto):
+            findings.append(_mk(eid, texto, m.start(1), m.end(1), "pegado", "info",
+                                "Doble espacio en título", suggestion=" "))
+
+        # APA 7: Un encabezado no lleva punto final (salvo que sea encabezado de párrafo nivel 4/5)
+        level = getattr(e, "heading_level", 1) or 1
+        t_strip = texto.rstrip()
+        if level <= 3 and t_strip.endswith("."):
+            pos = len(t_strip) - 1
+            findings.append(_mk(eid, texto, pos, pos + 1, "pegado", "warn",
+                                f"Los títulos y encabezados de nivel {level} en APA 7 no llevan punto final.",
+                                suggestion=""))
 
     # Repetición de n-gramas a nivel de documento
     findings.extend(detect_repeated_ngrams(elements))

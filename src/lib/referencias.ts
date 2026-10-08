@@ -174,8 +174,23 @@ export function parrafosQueCitan(
 
   const anio = toKey(ref.year ?? '').replace(/[^0-9]/g, '');
 
-  return elementos.filter((e) => {
+  // Encontrar el índice donde empieza la sección de referencias (si existe)
+  let refSectionIndex = -1;
+  for (let i = 0; i < elementos.length; i++) {
+    const el = elementos[i];
+    if (el.type === 'heading') {
+      const n = (el.text || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      if (/^(referencias?|bibliografia|obras consultadas|works cited)\b/.test(n)) {
+        refSectionIndex = i;
+        break;
+      }
+    }
+  }
+
+  return elementos.filter((e, idx) => {
     if (e.type === 'heading' || e.is_cover_section) return false;
+    // Todo lo que esté después del título de referencias pertenece a la bibliografía
+    if (refSectionIndex !== -1 && idx > refSectionIndex) return false;
     const texto = toKey(e.text ?? '');
     if (!texto.includes(apellido)) return false;
     /* Un año vacío no restringe: hay referencias sin año que sí se citan, y

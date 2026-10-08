@@ -96,10 +96,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-/** Monta la barra y espera al primer estado, que siempre llega por fetch. */
+import { WordLiveChip } from '../components/toolbar/WordLiveChip';
+
+/** Monta el chip y espera al primer estado, que siempre llega por fetch. */
 const montarBarra = async () => {
   let utils!: ReturnType<typeof render>;
-  await act(async () => { utils = render(<UnifiedToolbar />); });
+  await act(async () => { utils = render(<WordLiveChip />); });
   await act(async () => { await Promise.resolve(); });
   return utils;
 };

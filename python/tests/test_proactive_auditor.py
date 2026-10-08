@@ -83,6 +83,18 @@ def test_duplicate_word():
     assert len(dup) == 1
 
 
+def test_repeated_sentence_openers_offsets():
+    text = "Se propusieron mejoras. Se analizó el proceso. Se emplearon herramientas."
+    f = audit_elements([_para(text)])
+    rep = _kinds(f, "repeticion")
+    # Deben detectarse las 3 oraciones que empiezan con "Se"
+    assert len(rep) == 3
+    assert all("Se" in x["excerpt"] for x in rep)
+    assert rep[0]["start"] == 0 and rep[0]["end"] == 2
+    assert rep[1]["start"] == 24 and rep[1]["end"] == 26
+    assert rep[2]["start"] == 47 and rep[2]["end"] == 49
+
+
 def test_typo_deberia():
     f = audit_elements([_para("Esto deberia funcionar mejor.")])
     ort = _kinds(f, "ortografia")
@@ -243,8 +255,22 @@ def test_reglas_generales_corrigen_en_cualquier_fase():
     assert "first_person" in kinds
 
 
-def test_h1_no_se_audita_como_parrafo():
-    # El H1 es un delimitador: no produce hallazgos propios.
-    f = audit_elements([_h("h1", "Objetivos"),
-                        _para("Conocer el fenomeno X.")])
-    assert all(x["element_id"] == "e1" for x in f)
+def test_h1_audita_ortografia_y_punto_final():
+    # El H1 delimita fases pero también se audita para ortografía y punto final
+    f = audit_elements([_h("h1", "Objetivos."),
+                        _para("Conocer el fenomeno X.", "e1")])
+    # Heading h1 tiene punto final indebido según APA 7
+    h1_findings = [x for x in f if x["element_id"] == "h1"]
+    assert any(x["kind"] == "pegado" and "punto final" in x["message"] for x in h1_findings)
+
+
+def test_referencias_no_disparan_falsos_positivos_de_prosa():
+    f = audit_elements([
+        _h("h1", "Referencias"),
+        _para("Pérez, J. (2020). Estudio en 500 pacientes con prevalencia del 40%. Editorial Médica.", "ref1"),
+    ])
+    # En fase referencias, no debe marcarse g71_cifra_sin_cita ni g74_verbatim ni first_person
+    kinds = {x["kind"] for x in f}
+    assert "g71_cifra_sin_cita" not in kinds
+    assert "g74_verbatim_sin_comillas" not in kinds
+

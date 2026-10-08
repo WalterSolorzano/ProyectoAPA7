@@ -295,6 +295,8 @@ def apply_scope_bibliografia(doc: docx.Document) -> int:
         pf.first_line_indent = Cm(-1.27)
         pf.line_spacing = 2.0
         pf.space_after = Pt(0)
+        pf.space_before = Pt(0)
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
         count += 1
     return count
 

@@ -79,8 +79,10 @@ export const CoverCarouselStudio: React.FC = () => {
     const calcular = () => {
       const alto = el.clientHeight;
       const ancho = el.clientWidth;
-      const porAlto = Math.round((alto * 0.86) / ASPECTO_DE_HOJA_MAX);
-      const porAncho = Math.round(ancho * 0.55);
+      // Descontar overhead vertical (mascota badge ~56px + rótulo tarjeta ~72px + padding ~36px + botón CTA ~56px)
+      const altoDisponible = Math.max(220, alto - 220);
+      const porAlto = Math.round((altoDisponible * 0.92) / ASPECTO_DE_HOJA_MAX);
+      const porAncho = Math.round(ancho * 0.52);
       const optimo = Math.min(porAlto, porAncho);
       setAnchoCalculado(Math.max(ANCHO_MINIMO_DE_TARJETA_PX, optimo));
     };

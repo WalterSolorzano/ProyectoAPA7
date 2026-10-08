@@ -10,7 +10,7 @@ import { getWhatsAppComment, type WhatsAppContext } from '../layout/WhatsAppComm
 import { accentAgnosticRegex, findAccentAgnostic } from '../../lib/accentMatch';
 import { findCitationsInText } from '../../lib/citationHighlighter';
 
-export type MarkKind = 'ai' | 'spelling' | 'style' | 'comment' | 'citation';
+export type MarkKind = 'ai' | 'spelling' | 'style' | 'comment' | 'citation' | 'repeat';
 
 export interface ReadingMark {
   start: number;
@@ -49,6 +49,12 @@ export const MARK_STYLE: Record<MarkKind, React.CSSProperties> = {
     color: 'var(--color-danger)',
     fontWeight: 500,
   },
+  repeat: {
+    backgroundColor: 'var(--severity-critical-soft)',
+    borderBottom: '2px solid var(--color-danger)',
+    color: 'var(--color-danger)',
+    fontWeight: 600,
+  },
   style: {
     backgroundColor: 'var(--color-accent-soft)',
     borderBottom: '2px solid var(--color-accent)',
@@ -77,7 +83,7 @@ export const MARK_STYLE: Record<MarkKind, React.CSSProperties> = {
  *  es el que tiene burbuja: si el color no coincide con la burbuja, el
  *  usuario ve dos subrayados distintos para el mismo hallazgo. */
 const KIND_PRIORITY: Record<MarkKind, number> = {
-  comment: 5, citation: 4, spelling: 3, style: 2, ai: 1,
+  comment: 5, citation: 4, spelling: 3, repeat: 3, style: 2, ai: 1,
 };
 
 /** Tipos de bloque cuyo `text` es prosa corrida: admiten cita APA. */
@@ -106,6 +112,8 @@ const WHOLE_ELEMENT_ANCHOR = TEXT_BLOCK_TYPES;
 /** Corrector: qué motor pinta cada tipo de hallazgo. */
 const PROOFREAD_ENGINE: Record<string, MarkKind> = {
   ortografia: 'spelling',
+  repeticion: 'repeat',
+  palabra_repetida: 'repeat',
   ai_phrase: 'ai',
   muletilla: 'ai',
 };
@@ -315,13 +323,13 @@ export function ReadingText({ text, source }: { text: string; source: MarkSource
       <mark
         key={`m-${i}`}
         title={m.title}
-        style={{ ...MARK_STYLE[m.kind], padding: '0 1px', borderRadius: 'var(--radius-sm)' }}
+        style={{ ...MARK_STYLE[m.kind], padding: '0 1px', borderRadius: 'var(--radius-sm)', whiteSpace: 'pre-wrap' }}
       >
         {text.slice(m.start, m.end)}
       </mark>,
     );
     cursor = m.end;
   });
-  if (cursor < text.length) partes.push(<span key="tail">{text.slice(cursor)}</span>);
+  if (cursor < text.length) partes.push(<span key="tail" style={{ whiteSpace: 'pre-wrap' }}>{text.slice(cursor)}</span>);
   return <>{partes}</>;
 }

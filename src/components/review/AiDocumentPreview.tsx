@@ -54,7 +54,7 @@ export const AiDocumentPreview: React.FC<AiDocumentPreviewProps> = ({ paragraphs
           </label>
         </div>
       </div>
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1, minHeight: 0, height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
         {/* El clic viaja por `onElementClick` y no por burbujeo: el wrapper del
             párrafo en `PaperCanvas` corta la propagación. Solo los párrafos
             manchados abren su detalle; el resto no es navegable. */}

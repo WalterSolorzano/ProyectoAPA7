@@ -139,26 +139,27 @@ _EVIDENCE_MARKERS = re.compile(
 )
 
 
-def _analyze_sentence_structure(text: str) -> Tuple[float, int, List[str]]:
+def _analyze_sentence_structure(text: str) -> Tuple[float, int, List[str], str]:
     """
     Analiza la estructura de oraciones buscando longitud homogénea.
     La IA tiende a generar oraciones de longitud similar (~20-30 palabras).
 
     Retorna: (score 0-1, count de oraciones con longitud sospechosa,
-              lista de oraciones sospechosas para resaltar en el documento)
+              lista de oraciones sospechosas para resaltar en el documento,
+              mensaje descriptivo de detalle)
     """
     if not text or len(text.strip()) < 40:
-        return 0.0, 0, []
+        return 0.0, 0, [], ""
 
     # Dividir en oraciones por punto
     sentences = [s.strip() for s in re.split(r'[.!?]+', text) if s.strip()]
     if len(sentences) < 3:
-        return 0.0, 0, []
+        return 0.0, 0, [], ""
 
     word_counts = [len(s.split()) for s in sentences if len(s.split()) > 5]
 
     if len(word_counts) < 3:
-        return 0.0, 0, []
+        return 0.0, 0, [], ""
 
     # Calcular cuántas oraciones están en el rango 18-32 palabras
     medium_count = sum(1 for wc in word_counts if 18 <= wc <= 32)
@@ -177,18 +178,24 @@ def _analyze_sentence_structure(text: str) -> Tuple[float, int, List[str]]:
     if ratio > 0.85:
         score += 0.2
 
+    # Baja variación en longitud entre oraciones (patrón típico de cadencia sintética)
     if rel_std < 0.35 and len(word_counts) >= 4:
         score += 0.3
     if rel_std < 0.25 and len(word_counts) >= 5:
         score += 0.2
 
     # Oraciones sospechosas (las que disparan la señal) para resaltado inline
-    suspicious = [
-        s for s in sentences
-        if 18 <= len(s.split()) <= 32
-    ][:3]
+    if medium_count > 0:
+        suspicious = [s for s in sentences if 18 <= len(s.split()) <= 32][:3]
+        reported_count = medium_count
+        detail = f"Estructura de oraciones homogénea ({reported_count} oraciones de longitud similar, 18-32 palabras cada una)"
+    else:
+        # Baja variación con longitud uniforme fuera de 18-32 palabras
+        suspicious = [s for s in sentences if abs(len(s.split()) - mean) <= max(std_dev, 2.0)][:3]
+        reported_count = len(suspicious)
+        detail = f"Estructura de oraciones homogénea ({len(word_counts)} oraciones de longitud muy similar, ~{int(round(mean))} palabras cada una)"
 
-    return min(score, 1.0), medium_count, suspicious
+    return min(score, 1.0), reported_count, suspicious, detail
 
 
 def _detect_semicolon_overuse(text: str) -> Tuple[float, int]:
@@ -703,12 +710,12 @@ def analyze_ai_risk(text: str, is_technical_domain: bool | None = None) -> Dict[
     total_score += min(phrase_score_total, 0.35)
 
     # 2. Estructura de oraciones repetitiva
-    struct_score, medium_sentences, suspicious_sentences = _analyze_sentence_structure(text)
+    struct_score, medium_sentences, suspicious_sentences, struct_detail = _analyze_sentence_structure(text)
     if struct_score > 0.2:
         result["findings"].append({
             "pattern": "sentence_structure",
             "severity": "MEDIUM" if struct_score > 0.5 else "LOW",
-            "detail": f"Estructura de oraciones homogénea ({medium_sentences} oraciones de longitud similar, 18-32 palabras cada una)",
+            "detail": struct_detail,
             "count": medium_sentences,
             "phrase": suspicious_sentences[0] if suspicious_sentences else "",
             "phrases": suspicious_sentences,

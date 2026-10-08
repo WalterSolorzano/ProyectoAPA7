@@ -110,6 +110,10 @@ export function useReviewActions(store: ReviewActionStore, state: ReviewActionSt
       try {
         if (item.suggestedText) {
           await updateElementText(item.element_id, item.suggestedText);
+        } else if (item.subtype === 'texto_pegado') {
+          // Corrección mecánica local: evitar llamada a red síncrona / LLM
+          const normalizado = (item.originalText || '').replace(/[ \t]{2,}/g, ' ');
+          await updateElementText(item.element_id, normalizado);
         } else {
           const reescrito = await api.rewriteText(
             doc.session_id,

@@ -18,6 +18,8 @@ import {
 import { dpiEfectivo, ratioDeDimensiones, altoProporcional, esBajaResolucion, DPI_MIN } from '../../lib/imagenFormato';
 import { TablaEstiloSelector } from './TablaEstiloSelector';
 import { PRESETS_TABLA } from '../../lib/tablaRender';
+import { suggestCaption } from '../../api/backend';
+import { useDocStore } from '../../store/useDocStore';
 
 export type InspectorTabKey = 'formato' | 'texto' | 'estilo' | 'calidad';
 
@@ -55,8 +57,10 @@ export type ActivoPatch = Partial<NonNullable<ElementModel['image_info']>> &
 export interface InspectorActivoTabsProps {
   elem: ElementModel;
   totalFiguras: number;
+  totalTablas?: number;
   onUpdate: (id: string, patch: ActivoPatch) => void;
   onApplyToAll: () => void;
+  onApplyTableToAll?: (patch: ActivoPatch) => void;
 }
 
 interface StylePreset {
@@ -189,11 +193,14 @@ const STYLE_PRESETS: StylePreset[] = [
 export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
   elem,
   totalFiguras,
+  totalTablas = 1,
   onUpdate,
   onApplyToAll,
+  onApplyTableToAll,
 }) => {
   const [tabActiva, setTabActiva] = useState<InspectorTabKey>('formato');
   const [alcance, setAlcance] = useState<'esta' | 'todas'>('esta');
+  const [alcanceTabla, setAlcanceTabla] = useState<'esta' | 'todas'>('esta');
 
   // Las tablas no tienen imagen: ocultar todo control exclusivo de figura.
   const esTabla = elem.type === 'table';
@@ -260,12 +267,36 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
     onUpdate(elem.id, patch);
   };
 
-  const handleAutocompletar = () => {
+  const [autocompletando, setAutocompletando] = useState(false);
+
+  const handleAutocompletar = async () => {
+    let tituloSugerido = caption;
+    if (!tituloSugerido) {
+      setAutocompletando(true);
+      try {
+        const doc = useDocStore.getState().doc;
+        const apiKey = useDocStore.getState().apiKey;
+        if (doc?.session_id) {
+          const res = await suggestCaption(
+            doc.session_id,
+            elem.id,
+            altText || 'Figura o imagen académica',
+            apiKey ?? undefined
+          );
+          if (res) tituloSugerido = res;
+        }
+      } catch (err) {
+        console.warn('No se pudo generar leyenda con IA para autocompletar:', err);
+      } finally {
+        setAutocompletando(false);
+      }
+    }
+
     handleUpdate({
       width_cm: Math.min(widthCm, 15.0),
       alignment: 'center',
       design_style: 'standard',
-      caption: caption || 'Figura sin título especificado',
+      caption: tituloSugerido || 'Figura de estudio',
       note: note || 'Nota. Adaptado para cumplimiento de formato general APA 7ma edición.',
       alt_text: altText || 'Gráfico informativo del documento.',
     });
@@ -700,12 +731,104 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
 
         {/* ── ESTILO: malla 2 columnas; la miniatura es la descripción ── */}
         {tabEfectiva === 'estilo' && esTabla && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-            <span style={sectionLabel}>Estilo de tabla ({PRESETS_TABLA.length})</span>
-            <TablaEstiloSelector
-              valor={(tablaInfo.style as any) || 'apa'}
-              onChange={(p) => handleUpdate({ style: p } as ActivoPatch)}
-            />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+              <span style={sectionLabel}>Diseño y Estilo APA ({PRESETS_TABLA.length})</span>
+              <TablaEstiloSelector
+                valor={(tablaInfo.style as any) || 'apa'}
+                onChange={(p) => handleUpdate({ style: p } as ActivoPatch)}
+              />
+            </div>
+
+            {/* Orientación de página: opción para tablas anchas */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+              <span style={sectionLabel}>Orientación de la página</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)' }}>
+                <button
+                  type="button"
+                  aria-pressed={(tablaInfo.orientation || 'portrait') === 'portrait'}
+                  onClick={() => handleUpdate({ orientation: 'portrait' } as ActivoPatch)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: `1.5px solid ${(tablaInfo.orientation || 'portrait') === 'portrait' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                    backgroundColor: (tablaInfo.orientation || 'portrait') === 'portrait' ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
+                    color: 'var(--text-main)',
+                    fontSize: '11px',
+                    fontWeight: (tablaInfo.orientation || 'portrait') === 'portrait' ? 700 : 500,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <svg width="14" height="18" viewBox="0 0 14 18" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <rect x="1" y="1" width="12" height="16" rx="2" />
+                  </svg>
+                  <span>Vertical</span>
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={tablaInfo.orientation === 'landscape'}
+                  onClick={() => handleUpdate({ orientation: 'landscape' } as ActivoPatch)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: `1.5px solid ${tablaInfo.orientation === 'landscape' ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                    backgroundColor: tablaInfo.orientation === 'landscape' ? 'var(--color-accent-soft)' : 'var(--surface-subtle)',
+                    color: 'var(--text-main)',
+                    fontSize: '11px',
+                    fontWeight: tablaInfo.orientation === 'landscape' ? 700 : 500,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <svg width="18" height="14" viewBox="0 0 18 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <rect x="1" y="1" width="16" height="12" rx="2" />
+                  </svg>
+                  <span>Horizontal (Ancha)</span>
+                </button>
+              </div>
+              <span style={{ fontSize: '10.5px', color: 'var(--color-text-tertiary)', lineHeight: 1.3 }}>
+                Gira la hoja a apaisada para tablas con muchas columnas según APA 7.
+              </span>
+            </div>
+
+            {/* Alcance de estilo de tabla */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', paddingTop: 'var(--space-2)', borderTop: '1px solid var(--border-subtle)' }}>
+              <label htmlFor="select-alcance-tabla" style={sectionLabel}>
+                Alcance
+              </label>
+              <select
+                id="select-alcance-tabla"
+                aria-label="Alcance de tabla"
+                value={alcanceTabla}
+                onChange={(e) => setAlcanceTabla(e.target.value as 'esta' | 'todas')}
+                style={fieldStyle}
+              >
+                <option value="esta">Solo esta tabla</option>
+                <option value="todas">Todas las tablas ({totalTablas})</option>
+              </select>
+
+              {alcanceTabla === 'todas' && onApplyTableToAll && (
+                <button
+                  type="button"
+                  onClick={() => onApplyTableToAll({
+                    style: (tablaInfo.style as any) || 'apa',
+                    orientation: tablaInfo.orientation || 'portrait',
+                  } as ActivoPatch)}
+                  className="fig-apply-btn"
+                  style={{ justifyContent: 'center' }}
+                >
+                  <Sliders size={13} />
+                  <span>Aplicar a todas las tablas</span>
+                </button>
+              )}
+            </div>
           </div>
         )}
         {tabEfectiva === 'estilo' && !esTabla && (
@@ -782,9 +905,15 @@ export const InspectorActivoTabs: React.FC<InspectorActivoTabsProps> = ({
             </div>
 
             {!esTabla && (
-              <button type="button" onClick={handleAutocompletar} className="fig-apply-btn" style={{ justifyContent: 'center' }}>
+              <button
+                type="button"
+                onClick={handleAutocompletar}
+                disabled={autocompletando}
+                className="fig-apply-btn"
+                style={{ justifyContent: 'center', opacity: autocompletando ? 0.7 : 1, cursor: autocompletando ? 'wait' : 'pointer' }}
+              >
                 <Sparkles size={13} />
-                <span>Autocompletar recomendación APA</span>
+                <span>{autocompletando ? 'Consultando IA...' : 'Autocompletar recomendación APA'}</span>
               </button>
             )}
           </div>

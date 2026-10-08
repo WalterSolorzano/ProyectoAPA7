@@ -429,9 +429,11 @@ def apply_inplace(
     removed_refs = 0
     ref_zone_start = len(paragraphs)
     if "texto" in active or "bibliografia" in active:
-        # Localizar inicio de bibliografÃ­a: Ãºltimo heading 'Referencias' o primer pÃ¡rrafo-ref
+        from modules.phase_scope import is_references_title
+        # Localizar inicio de bibliografía: último heading 'Referencias' o primer párrafo-ref
         for i in range(len(paragraphs) - 1, body_start, -1):
-            if _strip_accents(paragraphs[i].text.strip().lower().rstrip(":")) in ("referencias", "bibliografia", "references"):
+            cand = _strip_accents(paragraphs[i].text.strip().rstrip(":"))
+            if is_references_title(cand) or cand.lower() in ("referencias", "bibliografia", "references", "referencias bibliograficas"):
                 ref_zone_start = i + 1
                 break
 
@@ -497,6 +499,7 @@ def apply_inplace(
 
             # Aplicar formato APA 7 al título
             if lvl == 1:
+                para.paragraph_format.page_break_before = True
                 para.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 para.paragraph_format.first_line_indent = Inches(0)
                 for r in para.runs:
@@ -566,6 +569,22 @@ def apply_inplace(
                 changed += 1
             continue
 
+        # Figuras y leyendas de tablas -> margen 0, SIN sangría de primera línea
+        is_caption = bool(_REGEX_TABLE_CAPTION.match(text) or _REGEX_FIGURE_CAPTION.match(text))
+        if is_caption:
+            pf = para.paragraph_format
+            pf.left_indent = Inches(0)
+            pf.right_indent = Inches(0)
+            pf.first_line_indent = Inches(0)
+            pf.line_spacing = line_sp
+            pf.space_after = Pt(0)
+            pf.space_before = Pt(0)
+            for run in para.runs:
+                run.font.name = font_name
+                run.font.size = font_size
+            changed += 1
+            continue
+
         if "texto" in active:
             pf = para.paragraph_format
             pf.left_indent = Inches(0)
@@ -589,9 +608,13 @@ def apply_inplace(
                     else:
                         para.text = new_text
 
+            # Si todos los runs de un párrafo ordinario traen negrita por herencia errónea, apagarla
+            all_bold = all(r.bold is True for r in para.runs if r.text.strip())
             for run in para.runs:
                 run.font.name = font_name
                 run.font.size = font_size
+                if all_bold:
+                    run.bold = False
             changed += 1
 
     if "tablas_imagenes" in active:
@@ -608,6 +631,10 @@ def apply_inplace(
                         trPr.append(OxmlElement("w:tblHeader"))
                     if trPr.find(qn("w:cantSplit")) is None:
                         trPr.append(OxmlElement("w:cantSplit"))
+                    for row in tbl.rows[1:]:
+                        rPr = row._tr.get_or_add_trPr()
+                        if rPr.find(qn("w:cantSplit")) is None:
+                            rPr.append(OxmlElement("w:cantSplit"))
                 except Exception:
                     pass
             # Bordes horizontales Ãºnicamente (estilo APA clÃ¡sico)
